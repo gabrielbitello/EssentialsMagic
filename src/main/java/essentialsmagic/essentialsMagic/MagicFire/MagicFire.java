@@ -1,4 +1,4 @@
-package essentialsmagic.essentialsMagic.MagicFire;
+package essentialsmagic.EssentialsMagic.MagicFire;
 
 import io.th0rgal.oraxen.api.events.furniture.OraxenFurniturePlaceEvent;
 import net.kyori.adventure.text.Component;
@@ -23,11 +23,11 @@ public class MagicFire implements Listener {
             int z = event.getBlock().getZ();
 
             // Envia uma mensagem colorida para o console
-            Bukkit.getConsoleSender().sendMessage(Component.text("A mobília 'chama_dos_sonhos' foi colocada por ")
+            Bukkit.getConsoleSender().sendMessage(String.valueOf(Component.text("A mobília 'chama_dos_sonhos' foi colocada por ")
                     .color(NamedTextColor.LIGHT_PURPLE)
                     .append(Component.text(playerName).color(NamedTextColor.GOLD))
                     .append(Component.text(" nas coordenadas: ").color(NamedTextColor.LIGHT_PURPLE))
-                    .append(Component.text("X: " + x + " Y: " + y + " Z: " + z).color(NamedTextColor.GREEN))
+                    .append(Component.text("X: " + x + " Y: " + y + " Z: " + z).color(NamedTextColor.GREEN)))
             );
         }
     }

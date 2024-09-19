@@ -1,0 +1,7 @@
+name: EssentialsMagic
+version: '1.0-SNAPSHOT'
+main: essentialsmagic.EssentialsMagic.main
+api-version: '1.20'
+authors: [ GabrielBitello ]
+description: A essentials plugin
+depend: [Oraxen]

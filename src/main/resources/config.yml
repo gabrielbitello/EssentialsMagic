@@ -1,0 +1,10 @@
+mysql:
+  host: "localhost"
+  port: 3306
+  database: "mydatabase"
+  username: "user"
+  password: "password"
+
+magicfire:
+  portal_id: "chama_dos_sonhos"
+  portal_key_id: "po_dos_sonhos"

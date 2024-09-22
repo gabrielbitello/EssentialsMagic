@@ -1,11 +1,17 @@
 package essentialsmagic.EssentialsMagic.MagicFire;
 
 import essentialsmagic.EssentialsMagic.MagicFire.guis.tp_menu;
+
 import io.th0rgal.oraxen.api.OraxenItems;
 import io.th0rgal.oraxen.api.events.furniture.OraxenFurnitureBreakEvent;
 import io.th0rgal.oraxen.api.events.furniture.OraxenFurnitureInteractEvent;
 import io.th0rgal.oraxen.api.events.furniture.OraxenFurniturePlaceEvent;
+import io.th0rgal.oraxen.api.OraxenFurniture;
+
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
+import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -36,9 +42,12 @@ public class MagicFire implements Listener {
         if (event.getMechanic().getItemID().equals(portalId)) {
             Player player = event.getPlayer();
             Location location = event.getBlock().getLocation();
+
+            // Cancelar a colocação da mobília inicialmente
+            event.setCancelled(true);
+
             if (mfMySQL.isPortalNearby(location, 2)) {
                 player.sendMessage("§cNão é possível criar um portal tão próximo de outro!");
-                event.setCancelled(true);
                 return;
             }
 
@@ -47,6 +56,11 @@ public class MagicFire implements Listener {
             plugin.getConfig().set("aguardando_nome_portal." + player.getUniqueId(), true);
             plugin.saveConfig();
             new PortalNameTimeoutTask(this, player).runTaskLater(plugin, 600L);
+
+            // Colocar a mobília manualmente usando a API do Oraxen
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                OraxenFurniture.place(event.getMechanic().getItemID(), location.getBlock().getLocation(), location.getYaw(), BlockFace.UP);
+            });
         }
     }
 
@@ -95,6 +109,7 @@ public class MagicFire implements Listener {
         String bannedPlayers = "";
         int visits = 0;
         mfMySQL.verifyAndInsertPortal(player, playerUUID, portalName, playerName, description, category, icon, world, x, y, z, status, bannedPlayers, visits);
+        plugin.getLogger().info("Portal created: " + portalName + " at location: " + x + ", " + y + ", " + z);
     }
 
     @EventHandler
@@ -108,7 +123,7 @@ public class MagicFire implements Listener {
                 String itemId = OraxenItems.getIdByItem(itemInHand);
                 if (portalKeyId.equals(itemId)) {
                     fireLocation = event.getBlock().getLocation();
-                    tpMenu.openMenu(player); // Abre o menu inicial
+                    tpMenu.openMenu(player, fireLocation);
                 } else {
                     player.sendMessage("§cVocê precisa da chave correta para interagir com este portal.");
                 }

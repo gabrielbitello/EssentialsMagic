@@ -1,9 +1,18 @@
 package essentialsmagic.EssentialsMagic.MagicFire;
 
 import essentialsmagic.EssentialsMagic.MagicFire.guis.tp_menu;
+
+import net.luckperms.api.LuckPerms;
+import net.luckperms.api.LuckPermsProvider;
+import net.luckperms.api.model.user.User;
+import net.luckperms.api.node.Node;
+
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.plugin.Plugin;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -12,10 +21,12 @@ import java.util.logging.Level;
 
 public class MF_MySQL {
     private final JavaPlugin plugin;
+    private final FileConfiguration config;
     private Connection connection;
 
-    public MF_MySQL(JavaPlugin plugin) {
+    public MF_MySQL(JavaPlugin plugin, FileConfiguration config) {
         this.plugin = plugin;
+        this.config = config;
         this.connect();
         this.checkAndCreateTable();
     }
@@ -111,11 +122,11 @@ public class MF_MySQL {
         return null;
     }
 
-    public void incrementVisits(tp_menu.Portal portal) {
+    public void incrementVisits(String portalName) {
         String query = "UPDATE warp_network SET visits = visits + 1 WHERE name = ?";
-        try (PreparedStatement statement = this.connection.prepareStatement(query)) {
-            statement.setString(1, portal.getName());
-            statement.executeUpdate();
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, portalName);
+            stmt.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -157,14 +168,15 @@ public class MF_MySQL {
     }
 
     public void verifyAndInsertPortal(Player player, String playerUUID, String portalName, String playerName, String description, String category, String icon, String world, double x, double y, double z, int status, String bannedPlayers, int visits) {
+        int maxPortals = getMaxPortals(player);
         String query = "SELECT COUNT(*) AS count FROM warp_network WHERE player_uuid = ?";
         try (PreparedStatement pstmt = this.connection.prepareStatement(query)) {
             pstmt.setString(1, playerUUID);
             try (ResultSet resultSet = pstmt.executeQuery()) {
-                if (resultSet.next() && resultSet.getInt("count") == 0) {
+                if (resultSet.next() && resultSet.getInt("count") < maxPortals) {
                     insertData(playerUUID, portalName, description, category, icon, world, x, y, z, status, bannedPlayers, visits);
                 } else {
-                    player.sendMessage("§cVocê já possui um portal.");
+                    player.sendMessage("§cVocê já possui o número máximo de portais.");
                 }
             }
         } catch (SQLException e) {
@@ -216,5 +228,23 @@ public class MF_MySQL {
                 this.plugin.getLogger().log(Level.SEVERE, "Could not close MySQL connection", e);
             }
         }
+    }
+
+    private int getMaxPortals(Player player) {
+        if (config.getBoolean("use_luckperms", true)) {
+            Plugin luckPermsPlugin = Bukkit.getPluginManager().getPlugin("LuckPerms");
+            if (luckPermsPlugin != null && luckPermsPlugin.isEnabled()) {
+                LuckPerms luckPerms = LuckPermsProvider.get();
+                User user = luckPerms.getUserManager().getUser(player.getUniqueId());
+                if (user != null) {
+                    for (String role : config.getConfigurationSection("magicfire.roles").getKeys(false)) {
+                        if (user.getNodes().contains(Node.builder("EssentialsMagic.MagicFire." + role).build())) {
+                            return config.getInt("magicfire.roles." + role);
+                        }
+                    }
+                }
+            }
+        }
+        return config.getInt("magicfire.default");
     }
 }

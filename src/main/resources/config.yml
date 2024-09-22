@@ -1,3 +1,5 @@
+use_luckperms: false
+
 mysql:
   host: "localhost"
   port: 3306
@@ -6,5 +8,10 @@ mysql:
   password: "password"
 
 magicfire:
+  prefix: "&c[Fire]"
   portal_id: "chama_dos_sonhos"
   portal_key_id: "po_dos_sonhos"
+  default: 2
+  roles:
+    vip: 4
+    premium: 6

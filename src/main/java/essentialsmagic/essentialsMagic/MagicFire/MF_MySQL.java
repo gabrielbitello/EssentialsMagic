@@ -60,7 +60,8 @@ public class MF_MySQL {
                 "z DOUBLE, " +
                 "status INT, " +
                 "banned_players TEXT, " +
-                "visits INT);";
+                "visits INT, " +
+                "portal_type VARCHAR(100));"; // Adicionada a coluna portal_type
 
         try (PreparedStatement stmt = this.connection.prepareStatement(createTableSQL)) {
             stmt.executeUpdate();
@@ -86,7 +87,8 @@ public class MF_MySQL {
                         resultSet.getInt("visits"),
                         resultSet.getString("icon"),
                         resultSet.getString("category"),
-                        resultSet.getString("description")
+                        resultSet.getString("description"),
+                        resultSet.getString("portal_type") // Adiciona o tipo do portal
                 );
                 portals.add(portal);
             }
@@ -112,7 +114,8 @@ public class MF_MySQL {
                             resultSet.getInt("visits"),
                             resultSet.getString("icon"),
                             resultSet.getString("category"),
-                            resultSet.getString("description")
+                            resultSet.getString("description"),
+                            resultSet.getString("portal_type") // Adiciona o tipo do portal
                     );
                 }
             }
@@ -140,7 +143,7 @@ public class MF_MySQL {
             pstmt.setDouble(2, location.getX());
             pstmt.setDouble(3, location.getY());
             pstmt.setDouble(4, location.getZ());
-            pstmt.setInt(5, radius);
+            pstmt.setInt(5, 10);
             try (ResultSet resultSet = pstmt.executeQuery()) {
                 if (resultSet.next()) {
                     return resultSet.getInt("count") > 0;
@@ -167,14 +170,15 @@ public class MF_MySQL {
         return false;
     }
 
-    public void verifyAndInsertPortal(Player player, String playerUUID, String portalName, String playerName, String description, String category, String icon, String world, double x, double y, double z, int status, String bannedPlayers, int visits) {
+    public void verifyAndInsertPortal(Player player, String playerUUID, String portalName, String playerName, String description, String category, String icon, String world, double x, double y, double z, int status, String bannedPlayers, int visits, String portalType) {
         int maxPortals = getMaxPortals(player);
         String query = "SELECT COUNT(*) AS count FROM warp_network WHERE player_uuid = ?";
         try (PreparedStatement pstmt = this.connection.prepareStatement(query)) {
             pstmt.setString(1, playerUUID);
             try (ResultSet resultSet = pstmt.executeQuery()) {
                 if (resultSet.next() && resultSet.getInt("count") < maxPortals) {
-                    insertData(playerUUID, portalName, description, category, icon, world, x, y, z, status, bannedPlayers, visits);
+                    insertData(playerUUID, portalName, description, category, icon, world, x, y, z, status, bannedPlayers, visits, portalType);
+                    player.sendMessage("§aPortal criado com sucesso!");
                 } else {
                     player.sendMessage("§cVocê já possui o número máximo de portais.");
                 }
@@ -184,8 +188,8 @@ public class MF_MySQL {
         }
     }
 
-    public void insertData(String playerUUID, String portalName, String description, String category, String icon, String world, double x, double y, double z, int status, String bannedPlayers, int visits) {
-        String insertSQL = "INSERT INTO warp_network (player_uuid, name, description, category, icon, world, x, y, z, status, banned_players, visits) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    public void insertData(String playerUUID, String portalName, String description, String category, String icon, String world, double x, double y, double z, int status, String bannedPlayers, int visits, String portalType) {
+        String insertSQL = "INSERT INTO warp_network (player_uuid, name, description, category, icon, world, x, y, z, status, banned_players, visits, portal_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement pstmt = this.connection.prepareStatement(insertSQL)) {
             pstmt.setString(1, playerUUID);
             pstmt.setString(2, portalName);
@@ -199,6 +203,7 @@ public class MF_MySQL {
             pstmt.setInt(10, status);
             pstmt.setString(11, bannedPlayers);
             pstmt.setInt(12, visits);
+            pstmt.setString(13, portalType);
             pstmt.executeUpdate();
         } catch (SQLException e) {
             this.plugin.getLogger().log(Level.SEVERE, "Could not insert data", e);
@@ -213,7 +218,7 @@ public class MF_MySQL {
             pstmt.setDouble(2, location.getX());
             pstmt.setDouble(3, location.getY());
             pstmt.setDouble(4, location.getZ());
-            pstmt.setInt(5, radius);
+            pstmt.setInt(5, 6);
             pstmt.executeUpdate();
         } catch (SQLException e) {
             this.plugin.getLogger().severe("Could not execute query: " + e.getMessage());
@@ -246,5 +251,32 @@ public class MF_MySQL {
             }
         }
         return config.getInt("magicfire.default");
+    }
+
+    public List<tp_menu.Portal> getPortalsByCategory(String category) {
+        List<tp_menu.Portal> portals = new ArrayList<>();
+        try {
+            String query = "SELECT * FROM warp_network WHERE category = ?";
+            PreparedStatement statement = connection.prepareStatement(query);
+            statement.setString(1, category);
+            ResultSet resultSet = statement.executeQuery();
+
+            while (resultSet.next()) {
+                String name = resultSet.getString("name");
+                String world = resultSet.getString("world");
+                double x = resultSet.getDouble("x");
+                double y = resultSet.getDouble("y");
+                double z = resultSet.getDouble("z");
+                int visits = resultSet.getInt("visits");
+                String icon = resultSet.getString("icon");
+                String description = resultSet.getString("description");
+
+                tp_menu.Portal portal = new tp_menu.Portal(name, world, x, y, z, visits, icon, category, description, resultSet.getString("portal_type"));
+                portals.add(portal);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return portals;
     }
 }

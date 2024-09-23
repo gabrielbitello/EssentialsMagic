@@ -1,9 +1,13 @@
 package essentialsmagic.EssentialsMagic.MagicFire.guis;
 
 import essentialsmagic.EssentialsMagic.MagicFire.MF_MySQL;
+
+
+import io.th0rgal.oraxen.api.OraxenFurniture;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -12,14 +16,18 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.ChatColor;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class tp_menu implements Listener {
     private final JavaPlugin plugin;
     private final MF_MySQL mfMySQL;
     private Location fireLocation;
+    private Runnable onClose;
 
     public tp_menu(JavaPlugin plugin, MF_MySQL mfMySQL) {
         this.plugin = plugin;
@@ -30,7 +38,7 @@ public class tp_menu implements Listener {
     public void openMenu(Player player, Location fireLocation) {
         try {
             this.fireLocation = fireLocation;
-            Inventory inv = Bukkit.createInventory(null, 45, "Teleportar");
+            Inventory inv = Bukkit.createInventory(null, 54, "Teleportar");
             ItemStack glassPane = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
             ItemMeta glassMeta = glassPane.getItemMeta();
             glassMeta.setDisplayName(" ");
@@ -50,7 +58,7 @@ public class tp_menu implements Listener {
             ItemMeta blueFireMeta = blueFire.getItemMeta();
             blueFireMeta.setDisplayName("§bChamas mágicas");
             blueFire.setItemMeta(blueFireMeta);
-            inv.setItem(31, blueFire);
+            inv.setItem(40, blueFire);
 
             player.openInventory(inv);
         } catch (Exception e) {
@@ -59,9 +67,65 @@ public class tp_menu implements Listener {
         }
     }
 
-    public void openPortalMenu(Player player, int page) {
+    public void openIntermediateMenu(Player player) {
         try {
-            List<Portal> portals = mfMySQL.getPortals();
+            Inventory inv = Bukkit.createInventory(null, 54, "Menu Intermediário");
+
+            // Preencher todos os espaços vazios com vidro cinza claro
+            ItemStack glassPane = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
+            ItemMeta glassMeta = glassPane.getItemMeta();
+            glassMeta.setDisplayName(" ");
+            glassPane.setItemMeta(glassMeta);
+
+            for (int i = 0; i < inv.getSize(); i++) {
+                inv.setItem(i, glassPane);
+            }
+
+            ItemStack listButton = new ItemStack(Material.BOOK);
+            ItemMeta listButtonMeta = listButton.getItemMeta();
+            listButtonMeta.setDisplayName("§aLista Completa de Portais");
+            listButton.setItemMeta(listButtonMeta);
+            inv.setItem(31, listButton);
+
+            String[] categories = {"Vila", "Loja", "Build", "Farmes", "PVP", "Clan", "Outros", "Museu"};
+            Material[] categoryIcons = {Material.DIAMOND, Material.EMERALD, Material.GOLD_INGOT, Material.IRON_INGOT, Material.REDSTONE, Material.LAPIS_LAZULI, Material.QUARTZ, Material.COAL};
+
+            int[] categorySlots = {21, 22, 23, 30, 32, 39, 40, 41,};
+            for (int i = 0; i < categories.length; i++) {
+                ItemStack categoryItem = new ItemStack(categoryIcons[i]);
+                ItemMeta categoryMeta = categoryItem.getItemMeta();
+                categoryMeta.setDisplayName("§b" + categories[i]);
+                categoryItem.setItemMeta(categoryMeta);
+                inv.setItem(categorySlots[i], categoryItem);
+            }
+
+            // Adicionar estrelas do nether na segunda e penúltima linha vertical
+            ItemStack netherStar = new ItemStack(Material.NETHER_STAR);
+            ItemMeta netherStarMeta = netherStar.getItemMeta();
+            netherStarMeta.setDisplayName("§6Slot VIP");
+            netherStar.setItemMeta(netherStarMeta);
+
+            for (int i = 1; i < 5; i++) {
+                inv.setItem(i * 9 + 1, netherStar);
+                inv.setItem(i * 9 + 7, netherStar);
+            }
+
+            player.openInventory(inv);
+        } catch (Exception e) {
+            plugin.getLogger().severe("An error occurred while opening the intermediate menu: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void openPortalMenu(Player player, int page, String category) {
+        try {
+            List<Portal> portals;
+            if (category == null || category.isEmpty()) {
+                portals = mfMySQL.getPortals();
+            } else {
+                portals = mfMySQL.getPortalsByCategory(category);
+            }
+
             int totalPortals = portals.size();
             int totalPages = (int) Math.ceil((double) totalPortals / 45);
 
@@ -93,10 +157,18 @@ public class tp_menu implements Listener {
             prevPage.setItemMeta(prevPageMeta);
             portalInv.setItem(45, prevPage);
 
+            // Adicionar botão para voltar ao menu intermediário
+            ItemStack backButton = new ItemStack(Material.BARRIER);
+            ItemMeta backButtonMeta = backButton.getItemMeta();
+            backButtonMeta.setDisplayName("§cVoltar ao Menu Intermediário");
+            backButton.setItemMeta(backButtonMeta);
+            portalInv.setItem(49, backButton);
+
             int start = (page - 1) * 45;
             int end = Math.min(start + 45, totalPortals);
 
-            String prefix = plugin.getConfig().getString("magicfire.portal_prefix", "&c[Fire]");
+            String prefix = ChatColor.translateAlternateColorCodes('&', plugin.getConfig().getString("magicfire.prefix", "&c[Fire]&f"));
+
             int slotIndex = 0;
             boolean portalFiltered = false;
 
@@ -120,6 +192,7 @@ public class tp_menu implements Listener {
                 List<String> lore = new ArrayList<>();
                 lore.add("§7" + portal.getCategory());
                 lore.add("§7" + portal.getDescription());
+                lore.add("§7Tipo: " + portal.getType()); // Adiciona o tipo do portal ao lore
                 portalMeta.setLore(lore);
                 portalItem.setItemMeta(portalMeta);
                 portalInv.setItem(slotIndex, portalItem);
@@ -149,11 +222,39 @@ public class tp_menu implements Listener {
                     player.performCommand("spawn");
                 } else if (clickedItem.getType() == Material.SOUL_CAMPFIRE) {
                     player.closeInventory();
-                    openPortalMenu(player, 1);
+                    openIntermediateMenu(player);
                 }
             }
         } catch (Exception e) {
             plugin.getLogger().severe("An error occurred while handling inventory click: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    @EventHandler
+    public void onIntermediateMenuClick(InventoryClickEvent event) {
+        try {
+            if (event.getView().getTitle().equals("Menu Intermediário")) {
+                event.setCancelled(true);
+                Player player = (Player) event.getWhoClicked();
+                ItemStack clickedItem = event.getCurrentItem();
+                if (clickedItem == null || clickedItem.getType() == Material.AIR) {
+                    return;
+                }
+
+                if (clickedItem.getType() == Material.BOOK) {
+                    player.closeInventory();
+                    openPortalMenu(player, 1, null);
+                } else if (clickedItem.getType() == Material.NETHER_STAR) {
+                    player.sendMessage("§6Slot VIP pode ser comprado para destacar seu portal!");
+                } else {
+                    String category = clickedItem.getItemMeta().getDisplayName().substring(2); // Remove §b
+                    player.closeInventory();
+                    openPortalMenu(player, 1, category);
+                }
+            }
+        } catch (Exception e) {
+            plugin.getLogger().severe("An error occurred while handling intermediate menu click: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -169,27 +270,32 @@ public class tp_menu implements Listener {
                     return;
                 }
 
-                List<Portal> portals = mfMySQL.getPortals();
-                int totalPortals = portals.size();
-                int totalPages = (int) Math.ceil((double) totalPortals / 45);
-                int currentPage = Integer.parseInt(event.getView().getTitle().split(" ")[2]);
+                String[] titleParts = event.getView().getTitle().split(" ");
+                int currentPage = Integer.parseInt(titleParts[2]);
+                String category = titleParts.length > 3 ? titleParts[3] : null;
+
+                List<tp_menu.Portal> portals = category == null ? mfMySQL.getPortals() : mfMySQL.getPortalsByCategory(category);
+                int totalPages = (int) Math.ceil((double) portals.size() / 45);
 
                 if (clickedItem.getType() == Material.ARROW) {
                     String displayName = clickedItem.getItemMeta().getDisplayName();
                     if (displayName.equals("§aPróxima Página")) {
-                        openPortalMenu(player, currentPage == totalPages ? 1 : currentPage + 1);
+                        openPortalMenu(player, currentPage == totalPages ? 1 : currentPage + 1, category);
                     } else if (displayName.equals("§aPágina Anterior")) {
-                        openPortalMenu(player, currentPage == 1 ? totalPages : currentPage - 1);
+                        openPortalMenu(player, currentPage == 1 ? totalPages : currentPage - 1, category);
+                    } else if (displayName.equals("§cVoltar ao Menu Intermediário")) {
+                        openIntermediateMenu(player);
                     }
                 } else {
-                    String prefix = plugin.getConfig().getString("magicfire.portal_prefix", "Portal_");
-                    String portalName = clickedItem.getItemMeta().getDisplayName().substring(2); // Remove color code
-                    if (portalName.startsWith(prefix)) {
-                        portalName = portalName.substring(prefix.length() + 1); // Remove prefix and space
-                        Portal portal = mfMySQL.getPortalByName(portalName);
+                    String prefix = ChatColor.translateAlternateColorCodes('&', plugin.getConfig().getString("magicfire.prefix", "&c[Fire]&f"));
+                    String displayName = ChatColor.translateAlternateColorCodes('&', clickedItem.getItemMeta().getDisplayName());
+                    if (displayName.startsWith(prefix)) {
+                        String portalName = displayName.substring(prefix.length() + 1); // Remove prefix and space
+                        tp_menu.Portal portal = mfMySQL.getPortalByName(portalName);
                         if (portal != null) {
                             mfMySQL.incrementVisits(portal.getName());
-                            player.teleport(new Location(Bukkit.getWorld(portal.getWorld()), portal.getX(), portal.getY(), portal.getZ()));
+                            Location portalLocation = new Location(Bukkit.getWorld(portal.getWorld()), portal.getX(), portal.getY(), portal.getZ());
+                            teleportPlayerToPortal(player, portalLocation, portal.getType());
                             player.closeInventory();
                         }
                     }
@@ -197,6 +303,41 @@ public class tp_menu implements Listener {
             }
         } catch (Exception e) {
             plugin.getLogger().severe("An error occurred while handling portal menu click: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void teleportPlayerToPortal(Player player, Location portalLocation, String portalType) {
+        try {
+            boolean animationEnabled = plugin.getConfig().getBoolean("magicfire.animation", false);
+            List<String> portalIds = plugin.getConfig().getStringList("magicfire.portal_ids");
+            Map<String, String> portalAnimations = new HashMap<>();
+
+            for (String entry : plugin.getConfig().getStringList("magicfire.portal_ids_animation")) {
+                String[] parts = entry.split(":");
+                if (parts.length == 2) {
+                    portalAnimations.put(parts[0], parts[1]);
+                }
+            }
+
+            if (animationEnabled) {
+                String portalIdAnimation = portalAnimations.get(portalType);
+                if (portalIdAnimation != null) {
+                    float yaw = portalLocation.getYaw();
+                    OraxenFurniture.remove(portalLocation, null);
+                    OraxenFurniture.place(portalIdAnimation, portalLocation, yaw, BlockFace.UP);
+
+                    Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                        OraxenFurniture.remove(portalLocation, null);
+                        OraxenFurniture.place(portalType, portalLocation, yaw, BlockFace.UP);
+                    }, 80L);
+                }
+            }
+
+            plugin.getLogger().info("Teleporting player to portal of type: " + portalType);
+            player.teleport(portalLocation);
+        } catch (Exception e) {
+            plugin.getLogger().severe("An error occurred while teleporting the player to the portal: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -211,8 +352,9 @@ public class tp_menu implements Listener {
         private final String icon;
         private final String category;
         private final String description;
+        private final String type;
 
-        public Portal(String name, String world, double x, double y, double z, int visits, String icon, String category, String description) {
+        public Portal(String name, String world, double x, double y, double z, int visits, String icon, String category, String description, String type) {
             this.name = name;
             this.world = world;
             this.x = x;
@@ -222,6 +364,7 @@ public class tp_menu implements Listener {
             this.icon = icon;
             this.category = category;
             this.description = description;
+            this.type = type;
         }
 
         public String getName() {
@@ -262,6 +405,10 @@ public class tp_menu implements Listener {
 
         public String getDescription() {
             return description;
+        }
+
+        public String getType() {
+            return type;
         }
     }
 }

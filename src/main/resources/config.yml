@@ -1,16 +1,24 @@
 use_luckperms: false
 
 mysql:
-  host: "localhost"
+  host: localhost
   port: 3306
-  database: "mydatabase"
-  username: "user"
-  password: "password"
+  database: mydatabase
+  username: user
+  password: password
 
 magicfire:
-  prefix: "&c[Fire]"
-  portal_id: "chama_dos_sonhos"
-  portal_key_id: "po_dos_sonhos"
+  prefix: "&c[Fire]&f"
+  portal_ids:
+    - chama_dos_sonhos #Base
+    - chama_dos_sonhos_ativa #Animation
+    - BEE #Example
+    - BEE_A #Example animation
+  portal_key_id: po_dos_sonhos
+  animation: true
+  portal_ids_animation:
+    - chama_dos_sonhos:chama_dos_sonhos_ativa #Animation
+    - BEE:BEE_A #Example animation
   default: 2
   roles:
     vip: 4

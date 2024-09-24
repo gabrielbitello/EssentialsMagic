@@ -366,4 +366,21 @@ public class MF_MySQL {
             return new Location(Bukkit.getWorld(world), x, y, z);
         }
     }
+
+    public void updatePortalLocation(UUID playerUUID, String portalName, Location newLocation, float newYaw) {
+        String query = "UPDATE warp_network SET world = ?, x = ?, y = ?, z = ?, yaw = ? WHERE player_uuid = ? AND name = ?";
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setString(1, newLocation.getWorld().getName());
+            statement.setDouble(2, newLocation.getX());
+            statement.setDouble(3, newLocation.getY());
+            statement.setDouble(4, newLocation.getZ());
+            statement.setFloat(5, newYaw);
+            statement.setString(6, playerUUID.toString());
+            statement.setString(7, portalName);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erro ao atualizar a localização do portal: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 }

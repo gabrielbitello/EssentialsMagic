@@ -1,6 +1,8 @@
 package essentialsmagic.EssentialsMagic.MagicFire;
 
 import essentialsmagic.EssentialsMagic.MagicFire.guis.tp_menu;
+import essentialsmagic.EssentialsMagic.MagicFire.mf_commands;
+
 
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
@@ -17,6 +19,7 @@ import org.bukkit.plugin.Plugin;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.logging.Level;
 
 public class MF_MySQL {
@@ -44,6 +47,10 @@ public class MF_MySQL {
         } catch (SQLException e) {
             this.plugin.getLogger().log(Level.SEVERE, "Could not connect to MySQL database", e);
         }
+    }
+
+    private Connection getConnection() {
+        return this.connection;
     }
 
     private void checkAndCreateTable() {
@@ -283,5 +290,80 @@ public class MF_MySQL {
             e.printStackTrace();
         }
         return portals;
+    }
+
+    public PortalInfo isPortalOwner(UUID playerUUID, String portalName) {
+        String query = "SELECT yaw, world, x, y, z FROM warp_network WHERE player_uuid = ? AND name = ?";
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setString(1, playerUUID.toString());
+            statement.setString(2, portalName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return new PortalInfo(
+                            resultSet.getFloat("yaw"),
+                            resultSet.getString("world"),
+                            resultSet.getDouble("x"),
+                            resultSet.getDouble("y"),
+                            resultSet.getDouble("z")
+                    );
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erro ao verificar propriedade do portal: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public void updatePortalType(UUID playerUUID, String newPortalType) {
+        String query = "UPDATE warp_network SET portal_type = ? WHERE player_uuid = ?";
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setString(1, newPortalType);
+            statement.setString(2, playerUUID.toString());
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erro ao atualizar o tipo do portal: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public static class PortalInfo {
+        private final float yaw;
+        private final String world;
+        private final double x;
+        private final double y;
+        private final double z;
+
+        public PortalInfo(float yaw, String world, double x, double y, double z) {
+            this.yaw = yaw;
+            this.world = world;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+        }
+
+        public float getYaw() {
+            return yaw;
+        }
+
+        public String getWorld() {
+            return world;
+        }
+
+        public double getX() {
+            return x;
+        }
+
+        public double getY() {
+            return y;
+        }
+
+        public double getZ() {
+            return z;
+        }
+
+        public Location getLocation() {
+            return new Location(Bukkit.getWorld(world), x, y, z);
+        }
     }
 }

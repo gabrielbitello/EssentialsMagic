@@ -97,7 +97,8 @@ public class MF_MySQL {
                         resultSet.getString("category"),
                         resultSet.getString("description"),
                         resultSet.getString("portal_type"),
-                        resultSet.getString("yaw")
+                        resultSet.getString("yaw"),
+                        resultSet.getString("banned_players")
                 );
                 portals.add(portal);
             }
@@ -125,7 +126,8 @@ public class MF_MySQL {
                             resultSet.getString("category"),
                             resultSet.getString("description"),
                             resultSet.getString("portal_type"),
-                            resultSet.getString("yaw")
+                            resultSet.getString("yaw"),
+                            resultSet.getString("banned_players")
                     );
                 }
             }
@@ -282,8 +284,9 @@ public class MF_MySQL {
                 String description = resultSet.getString("description");
                 String portalType = resultSet.getString("portal_type");
                 String yaw = resultSet.getString("yaw");
+                String banned_players = resultSet.getString("banned_players");
 
-                tp_menu.Portal portal = new tp_menu.Portal(name, world, x, y, z, visits, icon, category, description, portalType, yaw);
+                tp_menu.Portal portal = new tp_menu.Portal(name, world, x, y, z, visits, icon, category, description, portalType, yaw, banned_players);
                 portals.add(portal);
             }
         } catch (Exception e) {
@@ -293,7 +296,7 @@ public class MF_MySQL {
     }
 
     public PortalInfo isPortalOwner(UUID playerUUID, String portalName) {
-        String query = "SELECT yaw, world, x, y, z FROM warp_network WHERE player_uuid = ? AND name = ?";
+        String query = "SELECT yaw, world, x, y, z, banned_players FROM warp_network WHERE player_uuid = ? AND name = ?";
         try (PreparedStatement statement = connection.prepareStatement(query)) {
             statement.setString(1, playerUUID.toString());
             statement.setString(2, portalName);
@@ -304,7 +307,8 @@ public class MF_MySQL {
                             resultSet.getString("world"),
                             resultSet.getDouble("x"),
                             resultSet.getDouble("y"),
-                            resultSet.getDouble("z")
+                            resultSet.getDouble("z"),
+                            resultSet.getString("banned_players")
                     );
                 }
             }
@@ -333,13 +337,15 @@ public class MF_MySQL {
         private final double x;
         private final double y;
         private final double z;
+        private final String banned_players;
 
-        public PortalInfo(float yaw, String world, double x, double y, double z) {
+        public PortalInfo(float yaw, String world, double x, double y, double z, String banned_players) {
             this.yaw = yaw;
             this.world = world;
             this.x = x;
             this.y = y;
             this.z = z;
+            this.banned_players = banned_players;
         }
 
         public float getYaw() {
@@ -365,6 +371,10 @@ public class MF_MySQL {
         public Location getLocation() {
             return new Location(Bukkit.getWorld(world), x, y, z);
         }
+
+        public String getBannedPlayers() {
+            return banned_players;
+        }
     }
 
     public void updatePortalLocation(UUID playerUUID, String portalName, Location newLocation, float newYaw) {
@@ -380,6 +390,44 @@ public class MF_MySQL {
             statement.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().severe("Erro ao atualizar a localização do portal: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void updateBannedPlayers(String portalName, String bannedPlayers) {
+        String query = "UPDATE warp_network SET banned_players = ? WHERE name = ?";
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setString(1, bannedPlayers);
+            statement.setString(2, portalName);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erro ao atualizar a lista de jogadores banidos: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void updatePortalIcon(UUID playerUUID, String portalName, String iconType) {
+        String query = "UPDATE warp_network SET icon = ? WHERE player_uuid = ? AND name = ?";
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setString(1, iconType);
+            statement.setString(2, playerUUID.toString());
+            statement.setString(3, portalName);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erro ao atualizar o ícone do portal: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void updatePortalCategory(UUID playerUUID, String portalName, String category) {
+        String query = "UPDATE warp_network SET category = ? WHERE player_uuid = ? AND name = ?";
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setString(1, category);
+            statement.setString(2, playerUUID.toString());
+            statement.setString(3, portalName);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erro ao atualizar a categoria do portal: " + e.getMessage());
             e.printStackTrace();
         }
     }

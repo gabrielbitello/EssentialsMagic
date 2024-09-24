@@ -4,6 +4,7 @@ import essentialsmagic.EssentialsMagic.MagicFire.MF_MySQL;
 
 
 import io.th0rgal.oraxen.api.OraxenFurniture;
+import io.th0rgal.oraxen.api.OraxenItems;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -18,10 +19,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.ChatColor;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class tp_menu implements Listener {
     private final JavaPlugin plugin;
@@ -87,14 +85,14 @@ public class tp_menu implements Listener {
             listButton.setItemMeta(listButtonMeta);
             inv.setItem(31, listButton);
 
-            String[] categories = {"Vila", "Loja", "Build", "Farmes", "PVP", "Clan", "Outros", "Museu"};
+            List<String> categories = getCategories();
             Material[] categoryIcons = {Material.DIAMOND, Material.EMERALD, Material.GOLD_INGOT, Material.IRON_INGOT, Material.REDSTONE, Material.LAPIS_LAZULI, Material.QUARTZ, Material.COAL};
 
-            int[] categorySlots = {21, 22, 23, 30, 32, 39, 40, 41,};
-            for (int i = 0; i < categories.length; i++) {
+            int[] categorySlots = {21, 22, 23, 30, 32, 39, 40, 41};
+            for (int i = 0; i < categories.size(); i++) {
                 ItemStack categoryItem = new ItemStack(categoryIcons[i]);
                 ItemMeta categoryMeta = categoryItem.getItemMeta();
-                categoryMeta.setDisplayName("§b" + categories[i]);
+                categoryMeta.setDisplayName("§b" + categories.get(i));
                 categoryItem.setItemMeta(categoryMeta);
                 inv.setItem(categorySlots[i], categoryItem);
             }
@@ -116,9 +114,12 @@ public class tp_menu implements Listener {
         }
     }
 
+    public static List<String> getCategories() {
+        return Arrays.asList("Vila", "Loja", "Build", "Farmes", "PVP", "Clan", "Outros", "Museu");
+    }
+
     public void openPortalMenu(Player player, int page, String category) {
         try {
-
             List<Portal> portals;
             if (category == null || category.isEmpty()) {
                 portals = mfMySQL.getPortals();
@@ -186,7 +187,15 @@ public class tp_menu implements Listener {
                     plugin.getLogger().severe("An error occurred while checking portal distance: " + e.getMessage());
                     e.printStackTrace();
                 }
-                ItemStack portalItem = new ItemStack(Material.matchMaterial(portal.getIcon()));
+
+                // Verificar se o ícone é um item do Oraxen
+                ItemStack portalItem;
+                if (OraxenItems.exists(portal.getIcon())) {
+                    portalItem = OraxenItems.getItemById(portal.getIcon()).build();
+                } else {
+                    portalItem = new ItemStack(Material.matchMaterial(portal.getIcon()));
+                }
+
                 ItemMeta portalMeta = portalItem.getItemMeta();
                 portalMeta.setDisplayName("§a" + prefix + " " + portal.getName());
                 List<String> lore = new ArrayList<>();
@@ -283,9 +292,9 @@ public class tp_menu implements Listener {
                         openPortalMenu(player, currentPage == totalPages ? 1 : currentPage + 1, category);
                     } else if (displayName.equals("§aPágina Anterior")) {
                         openPortalMenu(player, currentPage == 1 ? totalPages : currentPage - 1, category);
-                    } else if (displayName.equals("§cVoltar ao Menu Intermediário")) {
-                        openIntermediateMenu(player);
                     }
+                } else if (clickedItem.getType() == Material.BARRIER) {
+                    openIntermediateMenu(player);
                 } else {
                     String prefix = ChatColor.translateAlternateColorCodes('&', plugin.getConfig().getString("magicfire.prefix", "&c[Fire]&f"));
                     String displayName = ChatColor.translateAlternateColorCodes('&', clickedItem.getItemMeta().getDisplayName());
@@ -299,7 +308,7 @@ public class tp_menu implements Listener {
                                 plugin.getLogger().info("Yaw value from database: " + yawString);
                                 float yaw = Float.parseFloat(yawString);
                                 Location portalLocation = new Location(Bukkit.getWorld(portal.getWorld()), portal.getX(), portal.getY(), portal.getZ(), yaw, player.getLocation().getPitch());
-                                teleportPlayerToPortal(player, portalLocation, portal.getType());
+                                teleportPlayerToPortal(player, portalLocation, portal.getType(), portal.getbanned_players());
                             } catch (NumberFormatException e) {
                                 plugin.getLogger().severe("Invalid yaw value for portal: " + portal.getYaw());
                             }
@@ -314,7 +323,7 @@ public class tp_menu implements Listener {
         }
     }
 
-    public void teleportPlayerToPortal(Player player, Location portalLocation, String portalType) {
+    public void teleportPlayerToPortal(Player player, Location portalLocation, String portalType, String bannedPlayers) {
         try {
             boolean animationEnabled = plugin.getConfig().getBoolean("magicfire.animation", false);
             List<String> portalIds = plugin.getConfig().getStringList("magicfire.portal_ids");
@@ -325,6 +334,13 @@ public class tp_menu implements Listener {
                 if (parts.length == 2) {
                     portalAnimations.put(parts[0], parts[1]);
                 }
+            }
+
+            // Verificar se o jogador está banido do portal
+            List<String> bannedPlayersList = Arrays.asList(bannedPlayers.split(","));
+            if (bannedPlayersList.contains(player.getUniqueId().toString())) {
+                player.sendMessage("§cVocê está banido deste portal.");
+                return;
             }
 
             if (animationEnabled) {
@@ -363,8 +379,9 @@ public class tp_menu implements Listener {
         private final String description;
         private final String type;
         private final String yaw;
+        private final String banned_players;
 
-        public Portal(String name, String world, double x, double y, double z, int visits, String icon, String category, String description, String type, String yaw) {
+        public Portal(String name, String world, double x, double y, double z, int visits, String icon, String category, String description, String type, String yaw, String banned_players) {
             this.name = name;
             this.world = world;
             this.x = x;
@@ -376,6 +393,7 @@ public class tp_menu implements Listener {
             this.description = description;
             this.type = type;
             this.yaw = yaw;
+            this.banned_players = banned_players;
         }
 
         public String getName() {
@@ -424,6 +442,10 @@ public class tp_menu implements Listener {
 
         public String getType() {
             return type;
+        }
+
+        public String getbanned_players() {
+            return banned_players;
         }
     }
 }

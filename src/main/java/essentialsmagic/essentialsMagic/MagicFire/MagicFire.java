@@ -71,6 +71,14 @@ public class MagicFire implements Listener {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 OraxenFurniture.place(portalType, location, yaw, BlockFace.UP);
             });
+
+            // Remover uma unidade do item da mão do jogador
+            ItemStack itemInHand = player.getInventory().getItemInMainHand();
+            if (itemInHand != null && itemInHand.getAmount() > 1) {
+                itemInHand.setAmount(itemInHand.getAmount() - 1);
+            } else {
+                player.getInventory().setItemInMainHand(null);
+            }
         }
     }
 

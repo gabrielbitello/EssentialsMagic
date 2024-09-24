@@ -66,10 +66,10 @@ public class MagicFire implements Listener {
 
             player.setMetadata("portalType", new FixedMetadataValue(plugin, portalType));
 
-            float playerYaw = player.getLocation().getYaw();
-
+            // Recolocar a mobília com o yaw correto
+            float yaw = player.getLocation().getYaw();
             Bukkit.getScheduler().runTask(plugin, () -> {
-                OraxenFurniture.place(portalType, location.getBlock().getLocation(), playerYaw, BlockFace.UP);
+                OraxenFurniture.place(portalType, location, yaw, BlockFace.UP);
             });
         }
     }
@@ -78,20 +78,20 @@ public class MagicFire implements Listener {
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
         if (awaitingPortalName.getOrDefault(player.getUniqueId(), false)) {
-            String portalName = event.getMessage();
-            awaitingPortalName.remove(player.getUniqueId());
-            playerLocations.remove(player.getUniqueId());
-            if (mfMySQL.isPortalNameExists(portalName)) {
-                player.sendMessage("§cO nome do portal já existe. Ação cancelada.");
-                pendingPortals.remove(player);
-                event.setCancelled(true);
-                return;
-            }
-
-            Location location = pendingPortals.remove(player);
-            String portalType = player.getMetadata("portalType").get(0).asString(); // Recuperar o tipo do portal
-            handlePortalCreation(player, location, portalName, portalType);
             event.setCancelled(true);
+            String portalName = event.getMessage().trim();
+            Location location = pendingPortals.get(player);
+            String portalType = player.getMetadata("portalType").get(0).asString();
+
+            awaitingPortalName.remove(player.getUniqueId());
+            pendingPortals.remove(player);
+            playerLocations.remove(player.getUniqueId());
+
+            if (mfMySQL.verifyAndInsertPortal(player, player.getUniqueId().toString(), portalName, player.getName(), "Um portal mágico criado por " + player.getName(), "Outros", "stone", location.getWorld().getName(), location.getX(), location.getY(), location.getZ(), 1, "", 0, portalType, player.getLocation().getYaw())) {
+                player.sendMessage("§aPortal criado com sucesso!");
+            } else {
+                player.sendMessage("§cVocê já possui o número máximo de portais.");
+            }
         }
     }
 
@@ -103,7 +103,7 @@ public class MagicFire implements Listener {
             if (initialLocation != null && !initialLocation.equals(player.getLocation())) {
                 awaitingPortalName.remove(player.getUniqueId());
                 playerLocations.remove(player.getUniqueId());
-                pendingPortals.remove(player);
+                Location location = pendingPortals.remove(player);
                 player.sendMessage("§cVocê se moveu. A criação do portal foi cancelada.");
             }
         }
@@ -134,8 +134,11 @@ public class MagicFire implements Listener {
         int status = 1;
         String bannedPlayers = "";
         int visits = 0;
-        mfMySQL.verifyAndInsertPortal(player, playerUUID, portalName, playerName, description, category, icon, world, x, y, z, status, bannedPlayers, visits, portalType);
-        plugin.getLogger().info("Portal created: " + portalName + " at location: " + x + ", " + y + ", " + z + " with type: " + portalType);
+        float yaw = player.getLocation().getYaw(); // Capturar o yaw do jogador
+
+        // Salvar o portal e o yaw no banco de dados
+        mfMySQL.verifyAndInsertPortal(player, playerUUID, portalName, playerName, description, category, icon, world, x, y, z, status, bannedPlayers, visits, portalType, yaw);
+        plugin.getLogger().info("Portal created: " + portalName + " at location: " + x + ", " + y + ", " + z + " with type: " + portalType + " and yaw: " + yaw);
     }
 
     @EventHandler
@@ -166,17 +169,18 @@ public class MagicFire implements Listener {
                         return;
                     }
                     Location fireLocation = event.getBlock().getLocation();
+                    float yaw = player.getLocation().getYaw(); // Capturar o yaw do jogador
 
                     if (animationEnabled) {
                         String portalIdAnimation = portalAnimations.get(mechanicItemId);
                         if (portalIdAnimation != null) {
                             OraxenFurniture.remove(fireLocation, null);
-                            OraxenFurniture.place(portalIdAnimation, fireLocation, fireLocation.getYaw(), BlockFace.UP);
+                            OraxenFurniture.place(portalIdAnimation, fireLocation, yaw, BlockFace.UP);
 
                             // Restaurar a mobília original após 4 segundos (80 ticks)
                             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                                 OraxenFurniture.remove(fireLocation, null);
-                                OraxenFurniture.place(mechanicItemId, fireLocation, fireLocation.getYaw(), BlockFace.UP);
+                                OraxenFurniture.place(mechanicItemId, fireLocation, yaw, BlockFace.UP);
                             }, 80L);
                         } else {
                             player.sendMessage("§cAnimação não encontrada para o portal: " + mechanicItemId);

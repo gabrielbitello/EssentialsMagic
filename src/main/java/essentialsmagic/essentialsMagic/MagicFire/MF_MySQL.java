@@ -61,7 +61,8 @@ public class MF_MySQL {
                 "status INT, " +
                 "banned_players TEXT, " +
                 "visits INT, " +
-                "portal_type VARCHAR(100));"; // Adicionada a coluna portal_type
+                "yaw FLOAT, " +
+                "portal_type VARCHAR(100));";
 
         try (PreparedStatement stmt = this.connection.prepareStatement(createTableSQL)) {
             stmt.executeUpdate();
@@ -88,7 +89,8 @@ public class MF_MySQL {
                         resultSet.getString("icon"),
                         resultSet.getString("category"),
                         resultSet.getString("description"),
-                        resultSet.getString("portal_type") // Adiciona o tipo do portal
+                        resultSet.getString("portal_type"),
+                        resultSet.getString("yaw")
                 );
                 portals.add(portal);
             }
@@ -115,7 +117,8 @@ public class MF_MySQL {
                             resultSet.getString("icon"),
                             resultSet.getString("category"),
                             resultSet.getString("description"),
-                            resultSet.getString("portal_type") // Adiciona o tipo do portal
+                            resultSet.getString("portal_type"),
+                            resultSet.getString("yaw")
                     );
                 }
             }
@@ -170,26 +173,25 @@ public class MF_MySQL {
         return false;
     }
 
-    public void verifyAndInsertPortal(Player player, String playerUUID, String portalName, String playerName, String description, String category, String icon, String world, double x, double y, double z, int status, String bannedPlayers, int visits, String portalType) {
+    public boolean verifyAndInsertPortal(Player player, String playerUUID, String portalName, String playerName, String description, String category, String icon, String world, double x, double y, double z, int status, String bannedPlayers, int visits, String portalType, float yaw) {
         int maxPortals = getMaxPortals(player);
         String query = "SELECT COUNT(*) AS count FROM warp_network WHERE player_uuid = ?";
         try (PreparedStatement pstmt = this.connection.prepareStatement(query)) {
             pstmt.setString(1, playerUUID);
             try (ResultSet resultSet = pstmt.executeQuery()) {
                 if (resultSet.next() && resultSet.getInt("count") < maxPortals) {
-                    insertData(playerUUID, portalName, description, category, icon, world, x, y, z, status, bannedPlayers, visits, portalType);
-                    player.sendMessage("§aPortal criado com sucesso!");
-                } else {
-                    player.sendMessage("§cVocê já possui o número máximo de portais.");
+                    insertData(playerUUID, portalName, description, category, icon, world, x, y, z, status, bannedPlayers, visits, portalType, yaw);
+                    return true;
                 }
             }
         } catch (SQLException e) {
             this.plugin.getLogger().severe("Could not execute query: " + e.getMessage());
         }
+        return false;
     }
 
-    public void insertData(String playerUUID, String portalName, String description, String category, String icon, String world, double x, double y, double z, int status, String bannedPlayers, int visits, String portalType) {
-        String insertSQL = "INSERT INTO warp_network (player_uuid, name, description, category, icon, world, x, y, z, status, banned_players, visits, portal_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    public void insertData(String playerUUID, String portalName, String description, String category, String icon, String world, double x, double y, double z, int status, String bannedPlayers, int visits, String portalType, float yaw) {
+        String insertSQL = "INSERT INTO warp_network (player_uuid, name, description, category, icon, world, x, y, z, status, banned_players, visits, portal_type, yaw) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement pstmt = this.connection.prepareStatement(insertSQL)) {
             pstmt.setString(1, playerUUID);
             pstmt.setString(2, portalName);
@@ -204,6 +206,7 @@ public class MF_MySQL {
             pstmt.setString(11, bannedPlayers);
             pstmt.setInt(12, visits);
             pstmt.setString(13, portalType);
+            pstmt.setFloat(14, yaw); // Salvar o yaw
             pstmt.executeUpdate();
         } catch (SQLException e) {
             this.plugin.getLogger().log(Level.SEVERE, "Could not insert data", e);
@@ -270,8 +273,10 @@ public class MF_MySQL {
                 int visits = resultSet.getInt("visits");
                 String icon = resultSet.getString("icon");
                 String description = resultSet.getString("description");
+                String portalType = resultSet.getString("portal_type");
+                String yaw = resultSet.getString("yaw");
 
-                tp_menu.Portal portal = new tp_menu.Portal(name, world, x, y, z, visits, icon, category, description, resultSet.getString("portal_type"));
+                tp_menu.Portal portal = new tp_menu.Portal(name, world, x, y, z, visits, icon, category, description, portalType, yaw);
                 portals.add(portal);
             }
         } catch (Exception e) {

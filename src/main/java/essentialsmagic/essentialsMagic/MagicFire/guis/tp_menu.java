@@ -99,7 +99,6 @@ public class tp_menu implements Listener {
                 inv.setItem(categorySlots[i], categoryItem);
             }
 
-            // Adicionar estrelas do nether na segunda e penúltima linha vertical
             ItemStack netherStar = new ItemStack(Material.NETHER_STAR);
             ItemMeta netherStarMeta = netherStar.getItemMeta();
             netherStarMeta.setDisplayName("§6Slot VIP");
@@ -119,6 +118,7 @@ public class tp_menu implements Listener {
 
     public void openPortalMenu(Player player, int page, String category) {
         try {
+
             List<Portal> portals;
             if (category == null || category.isEmpty()) {
                 portals = mfMySQL.getPortals();
@@ -294,8 +294,15 @@ public class tp_menu implements Listener {
                         tp_menu.Portal portal = mfMySQL.getPortalByName(portalName);
                         if (portal != null) {
                             mfMySQL.incrementVisits(portal.getName());
-                            Location portalLocation = new Location(Bukkit.getWorld(portal.getWorld()), portal.getX(), portal.getY(), portal.getZ());
-                            teleportPlayerToPortal(player, portalLocation, portal.getType());
+                            try {
+                                String yawString = portal.getYaw();
+                                plugin.getLogger().info("Yaw value from database: " + yawString);
+                                float yaw = Float.parseFloat(yawString);
+                                Location portalLocation = new Location(Bukkit.getWorld(portal.getWorld()), portal.getX(), portal.getY(), portal.getZ(), yaw, player.getLocation().getPitch());
+                                teleportPlayerToPortal(player, portalLocation, portal.getType());
+                            } catch (NumberFormatException e) {
+                                plugin.getLogger().severe("Invalid yaw value for portal: " + portal.getYaw());
+                            }
                             player.closeInventory();
                         }
                     }
@@ -323,19 +330,21 @@ public class tp_menu implements Listener {
             if (animationEnabled) {
                 String portalIdAnimation = portalAnimations.get(portalType);
                 if (portalIdAnimation != null) {
-                    float yaw = portalLocation.getYaw();
                     OraxenFurniture.remove(portalLocation, null);
-                    OraxenFurniture.place(portalIdAnimation, portalLocation, yaw, BlockFace.UP);
+                    OraxenFurniture.place(portalIdAnimation, portalLocation, portalLocation.getYaw(), BlockFace.UP);
 
                     Bukkit.getScheduler().runTaskLater(plugin, () -> {
                         OraxenFurniture.remove(portalLocation, null);
-                        OraxenFurniture.place(portalType, portalLocation, yaw, BlockFace.UP);
+                        OraxenFurniture.place(portalType, portalLocation, portalLocation.getYaw(), BlockFace.UP);
                     }, 80L);
                 }
             }
 
             plugin.getLogger().info("Teleporting player to portal of type: " + portalType);
-            player.teleport(portalLocation);
+            Location playerLocation = portalLocation.clone();
+            playerLocation.setPitch(player.getLocation().getPitch()); // Manter o pitch do jogador
+            playerLocation.setYaw((portalLocation.getYaw() + 180) % 360); // Inverter o yaw
+            player.teleport(playerLocation); // Teletransportar o jogador para a nova localização com yaw ajustado
         } catch (Exception e) {
             plugin.getLogger().severe("An error occurred while teleporting the player to the portal: " + e.getMessage());
             e.printStackTrace();
@@ -353,8 +362,9 @@ public class tp_menu implements Listener {
         private final String category;
         private final String description;
         private final String type;
+        private final String yaw;
 
-        public Portal(String name, String world, double x, double y, double z, int visits, String icon, String category, String description, String type) {
+        public Portal(String name, String world, double x, double y, double z, int visits, String icon, String category, String description, String type, String yaw) {
             this.name = name;
             this.world = world;
             this.x = x;
@@ -365,6 +375,7 @@ public class tp_menu implements Listener {
             this.category = category;
             this.description = description;
             this.type = type;
+            this.yaw = yaw;
         }
 
         public String getName() {
@@ -401,6 +412,10 @@ public class tp_menu implements Listener {
 
         public String getCategory() {
             return category;
+        }
+
+        public String getYaw() {
+            return yaw;
         }
 
         public String getDescription() {

@@ -1,7 +1,13 @@
 package essentialsmagic.EssentialsMagic.MagicFire;
 
+import com.sk89q.worldguard.LocalPlayer;
+import com.sk89q.worldguard.WorldGuard;
+import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
+import com.sk89q.worldguard.protection.ApplicableRegionSet;
+import com.sk89q.worldguard.protection.flags.Flags;
+import com.sk89q.worldguard.protection.flags.StateFlag;
 import essentialsmagic.EssentialsMagic.MagicFire.guis.tp_menu;
-
+import essentialsmagic.EssentialsMagic.wg.WorldGuardManager;
 
 import io.th0rgal.oraxen.api.OraxenItems;
 import io.th0rgal.oraxen.api.events.furniture.OraxenFurnitureBreakEvent;
@@ -9,10 +15,14 @@ import io.th0rgal.oraxen.api.events.furniture.OraxenFurnitureInteractEvent;
 import io.th0rgal.oraxen.api.events.furniture.OraxenFurniturePlaceEvent;
 import io.th0rgal.oraxen.api.OraxenFurniture;
 
+import net.luckperms.api.LuckPerms;
+import net.luckperms.api.LuckPermsProvider;
+import net.luckperms.api.model.user.User;
+
+import org.bukkit.entity.Player;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.block.BlockFace;
-import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
@@ -31,27 +41,34 @@ public class MagicFire implements Listener {
     private final JavaPlugin plugin;
     private final MF_MySQL mfMySQL;
     private final tp_menu tpMenu;
+    private final WorldGuardManager worldGuardManager;
     private final Map<Player, Location> pendingPortals = new HashMap<>();
     private final Map<UUID, Boolean> awaitingPortalName = new HashMap<>();
     private final Map<UUID, Location> playerLocations = new HashMap<>();
-    private Location fireLocation;
 
-    public MagicFire(JavaPlugin plugin, MF_MySQL mfMySQL) {
+    public MagicFire(JavaPlugin plugin, MF_MySQL mfMySQL, WorldGuardManager worldGuardManager) {
         this.plugin = plugin;
         this.mfMySQL = mfMySQL;
         this.tpMenu = new tp_menu(plugin, mfMySQL);
+        this.worldGuardManager = worldGuardManager;
     }
 
     @EventHandler
     public void onFurniturePlace(OraxenFurniturePlaceEvent event) {
         List<String> portalIds = plugin.getConfig().getStringList("magicfire.portal_ids");
+        event.setCancelled(true); // Cancelar a colocação padrão
 
-        event.setCancelled(true);
-
-        if (portalIds.contains(event.getMechanic().getItemID())) {
+        String itemId = event.getMechanic().getItemID();
+        if (portalIds.contains(itemId)) {
             Player player = event.getPlayer();
             Location location = event.getBlock().getLocation();
-            String portalType = event.getMechanic().getItemID(); // Capture o ID do item aqui
+            LocalPlayer localPlayer = WorldGuardPlugin.inst().wrapPlayer(player);
+            ApplicableRegionSet set = WorldGuard.getInstance().getPlatform().getRegionContainer().createQuery().getApplicableRegions(localPlayer.getLocation());
+
+            if (!set.testState(localPlayer, WorldGuardManager.MAGIC_FIRE_FLAG) && !hasPermission(player)) {
+                player.sendMessage("§cVocê não tem permissão para colocar um portal aqui.");
+                return;
+            }
 
             if (mfMySQL.isPortalNearby(location, 2)) {
                 player.sendMessage("§cNão é possível criar um portal tão próximo de outro!");
@@ -64,17 +81,35 @@ public class MagicFire implements Listener {
             player.sendMessage("§aPor favor, digite o nome do portal no chat. Você tem 30 segundos para responder.");
             new PortalNameTimeoutTask(this, player).runTaskLater(plugin, 600L);
 
-            player.setMetadata("portalType", new FixedMetadataValue(plugin, portalType));
-
             // Recolocar a mobília com o yaw correto
-            float yaw = player.getLocation().getYaw();
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                OraxenFurniture.place(portalType, location, yaw, BlockFace.UP);
-            });
+            placeFurniture(itemId, location, player);
 
             // Remover uma unidade do item da mão do jogador
-            ItemStack itemInHand = player.getInventory().getItemInMainHand();
-            if (itemInHand != null && itemInHand.getAmount() > 1) {
+            updatePlayerInventory(player);
+        }
+    }
+
+    private boolean hasPermission(Player player) {
+        LuckPerms luckPerms = LuckPermsProvider.get();
+        if (luckPerms == null) {
+            return player.isOp();
+        } else {
+            User user = luckPerms.getUserManager().getUser(player.getUniqueId());
+            return user != null && user.getCachedData().getPermissionData().checkPermission("EssentialsMagic.MagicFire.ByPass").asBoolean();
+        }
+    }
+
+    private void placeFurniture(String itemId, Location location, Player player) {
+        float yaw = player.getLocation().getYaw();
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            OraxenFurniture.place(itemId, location, yaw, BlockFace.UP);
+        });
+    }
+
+    private void updatePlayerInventory(Player player) {
+        ItemStack itemInHand = player.getInventory().getItemInMainHand();
+        if (itemInHand != null) {
+            if (itemInHand.getAmount() > 1) {
                 itemInHand.setAmount(itemInHand.getAmount() - 1);
             } else {
                 player.getInventory().setItemInMainHand(null);
@@ -111,7 +146,7 @@ public class MagicFire implements Listener {
             if (initialLocation != null && !initialLocation.equals(player.getLocation())) {
                 awaitingPortalName.remove(player.getUniqueId());
                 playerLocations.remove(player.getUniqueId());
-                Location location = pendingPortals.remove(player);
+                pendingPortals.remove(player);
                 player.sendMessage("§cVocê se moveu. A criação do portal foi cancelada.");
             }
         }
@@ -120,8 +155,6 @@ public class MagicFire implements Listener {
     @EventHandler
     public void onFurnitureBreak(OraxenFurnitureBreakEvent event) {
         List<String> portalIds = plugin.getConfig().getStringList("magicfire.portal_ids");
-        String portalId = plugin.getConfig().getString("magicfire.portal_id", "chama_dos_sonhos");
-
         if (portalIds.contains(event.getMechanic().getItemID())) {
             Location location = event.getBlock().getLocation();
             mfMySQL.deleteNearbyPortal(location, 3);
@@ -129,84 +162,25 @@ public class MagicFire implements Listener {
         }
     }
 
-    public void handlePortalCreation(Player player, Location location, String portalName, String portalType) {
-        String playerUUID = player.getUniqueId().toString();
-        String playerName = player.getName();
-        String description = "Um portal mágico criado por " + playerName;
-        String category = "Outros";
-        String icon = "stone";
-        String world = player.getWorld().getName();
-        double x = location.getX();
-        double y = location.getY();
-        double z = location.getZ();
-        int status = 1;
-        String bannedPlayers = "";
-        int visits = 0;
-        float yaw = player.getLocation().getYaw(); // Capturar o yaw do jogador
-
-        // Salvar o portal e o yaw no banco de dados
-        mfMySQL.verifyAndInsertPortal(player, playerUUID, portalName, playerName, description, category, icon, world, x, y, z, status, bannedPlayers, visits, portalType, yaw);
-        plugin.getLogger().info("Portal created: " + portalName + " at location: " + x + ", " + y + ", " + z + " with type: " + portalType + " and yaw: " + yaw);
-    }
-
     @EventHandler
     public void onFurnitureInteract(OraxenFurnitureInteractEvent event) {
-        try {
-            List<String> portalIds = plugin.getConfig().getStringList("magicfire.portal_ids");
-            boolean animationEnabled = plugin.getConfig().getBoolean("magicfire.animation", false);
-            Map<String, String> portalAnimations = new HashMap<>();
+        Player player = event.getPlayer();
+        String mechanicItemId = event.getMechanic().getItemID();
+        List<String> portalIds = plugin.getConfig().getStringList("magicfire.portal_ids");
 
-            // Preencher o mapa com as animações dos portais
-            for (String entry : plugin.getConfig().getStringList("magicfire.portal_ids_animation")) {
-                String[] parts = entry.split(":");
-                if (parts.length == 2) {
-                    portalAnimations.put(parts[0], parts[1]);
-                }
+        if (portalIds.contains(mechanicItemId)) {
+            ItemStack itemInHand = player.getInventory().getItemInMainHand();
+            String portalKeyId = plugin.getConfig().getString("magicfire.portal_key_id", "po_dos_sonhos");
+
+            if (itemInHand != null && portalKeyId.equals(OraxenItems.getIdByItem(itemInHand))) {
+                Location fireLocation = event.getBlock().getLocation();
+                tpMenu.openMenu(player, fireLocation);
+            } else {
+                player.sendMessage("§cVocê precisa da chave correta para interagir com este portal.");
             }
-
-            String mechanicItemId = event.getMechanic().getItemID();
-
-            if (portalIds.contains(mechanicItemId)) {
-                Player player = event.getPlayer();
-                ItemStack itemInHand = player.getInventory().getItemInMainHand();
-                String portalKeyId = plugin.getConfig().getString("magicfire.portal_key_id", "po_dos_sonhos");
-
-                if (itemInHand != null && portalKeyId.equals(OraxenItems.getIdByItem(itemInHand))) {
-                    if (event.getBlock() == null) {
-                        player.sendMessage("§cO bloco do portal não pôde ser encontrado.");
-                        return;
-                    }
-                    Location fireLocation = event.getBlock().getLocation();
-                    float yaw = player.getLocation().getYaw(); // Capturar o yaw do jogador
-
-                    if (animationEnabled) {
-                        String portalIdAnimation = portalAnimations.get(mechanicItemId);
-                        if (portalIdAnimation != null) {
-                            OraxenFurniture.remove(fireLocation, null);
-                            OraxenFurniture.place(portalIdAnimation, fireLocation, yaw, BlockFace.UP);
-
-                            // Restaurar a mobília original após 4 segundos (80 ticks)
-                            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                                OraxenFurniture.remove(fireLocation, null);
-                                OraxenFurniture.place(mechanicItemId, fireLocation, yaw, BlockFace.UP);
-                            }, 80L);
-                        } else {
-                            player.sendMessage("§cAnimação não encontrada para o portal: " + mechanicItemId);
-                        }
-                    }
-
-                    tpMenu.openMenu(player, fireLocation);
-                } else {
-                    player.sendMessage("§cVocê precisa da chave correta para interagir com este portal.");
-                }
-            }
-        } catch (Exception e) {
-            plugin.getLogger().severe("An error occurred while interacting with the portal: " + e.getMessage());
-            e.printStackTrace();
         }
     }
 
-    // Adicione este método na classe MagicFire
     public Map<Player, Location> getPendingPortals() {
         return pendingPortals;
     }

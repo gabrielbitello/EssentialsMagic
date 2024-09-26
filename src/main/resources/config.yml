@@ -1,4 +1,5 @@
 use_luckperms: false
+use_worldguard: false
 
 mysql:
   host: localhost
@@ -8,6 +9,7 @@ mysql:
   password: password
 
 magicfire:
+  status: true
   prefix: "&c[Fire]&f"
   portal_ids:
     - chama_dos_sonhos #Base
@@ -20,6 +22,28 @@ magicfire:
     - chama_dos_sonhos:chama_dos_sonhos_ativa #Animation
     - BEE:BEE_A #Example animation
   default: 2
-  roles:
+  roles: #EssentialsMagic.MagicFire.<role>
     vip: 4
     premium: 6
+
+
+magickey:
+  status: true
+  key_cooldown: 5 #EssentialsMagic.MagicKey.time.byPass
+  key_id: #EssentialsMagic.MagicKey.Create
+    - MagicKey1:5000:false:-1 #Key name:distance:interdimencional:reutilizavel
+    - MagicKey2:-1:true:1
+  key_lore:
+    - "&7Chave criada por &c{player}"
+    - "&7Local: &c{location}"
+    - "&7Usos: &c{uses}"
+  home: true #EssentialsMagic.MagicKey.home
+  home_cooldown: 5 #EssentialsMagic.MagicKey.home.byPass
+  key_storage_role: #EssentialsMagic.MagicKey.<role>
+    vip: 4
+    premium: 6
+  world_teleport_blacklist: #EssentialsMagic.MagicKey.teleport.byPass
+    - world_nether
+    - world_the_end
+  world_create_blacklist: #EssentialsMagic.MagicKey.Create.byPass
+    - world_the_end

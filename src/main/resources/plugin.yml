@@ -10,3 +10,7 @@ commands:
     aliases: [mf]
     description: Comando principal do MagicFire
     usage: /<command> <subcommand>
+  magickey:
+    aliases: [mk]
+    description: Comando principal do MagicKey
+    usage: /<command> <subcommand>

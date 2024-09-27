@@ -32,10 +32,7 @@ import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 public class MagicFire implements Listener {
     private final JavaPlugin plugin;
@@ -124,13 +121,12 @@ public class MagicFire implements Listener {
             event.setCancelled(true);
             String portalName = event.getMessage().trim();
             Location location = pendingPortals.get(player);
-            String portalType = player.getMetadata("portalType").get(0).asString();
 
             awaitingPortalName.remove(player.getUniqueId());
             pendingPortals.remove(player);
             playerLocations.remove(player.getUniqueId());
 
-            if (mfMySQL.verifyAndInsertPortal(player, player.getUniqueId().toString(), portalName, player.getName(), "Um portal mágico criado por " + player.getName(), "Outros", "stone", location.getWorld().getName(), location.getX(), location.getY(), location.getZ(), 1, "", 0, portalType, player.getLocation().getYaw())) {
+            if (mfMySQL.verifyAndInsertPortal(player, player.getUniqueId().toString(), portalName, player.getName(), "Um portal mágico criado por " + player.getName(), "Outros", "stone", location.getWorld().getName(), location.getX(), location.getY(), location.getZ(), 1, "", 0, "default", player.getLocation().getYaw())) {
                 player.sendMessage("§aPortal criado com sucesso!");
             } else {
                 player.sendMessage("§cVocê já possui o número máximo de portais.");

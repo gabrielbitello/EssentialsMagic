@@ -101,27 +101,46 @@ public class MagicKey implements Listener {
         boolean hasCooldownBypass = user != null && user.getNodes().contains(Node.builder("magicKey.bypass.cooldown").build());
         boolean hasBlacklistBypass = user != null && user.getNodes().contains(Node.builder("magicKey.bypass.blacklist").build());
 
-        List<String> blacklist = config.getStringList("world_blacklist");
-        if (blacklist.contains(player.getWorld().getName()) && !hasBlacklistBypass) {
-            player.sendMessage("§cVocê não pode usar a chave neste mundo.");
-            return;
-        }
-
         Location targetLocation = getTargetLocationFromKey(key);
         if (targetLocation == null) {
             player.sendMessage("§cLocalização da chave inválida.");
             return;
         }
 
-        double maxDistance = config.getDouble("max_distance", -1);
-        if (maxDistance != -1 && player.getLocation().distance(targetLocation) > maxDistance) {
-            player.sendMessage("§cA localização alvo está muito longe.");
+        // Obter o ID da chave
+        String keyId = OraxenItems.getIdByItem(key);
+        double maxDistance = -1;
+        boolean isInterdimensional = false;
+        boolean isRestricted = false;
+
+        // Verificar a configuração específica da chave
+        List<String> keyConfigs = config.getStringList("magickey.key_id");
+        for (String keyConfig : keyConfigs) {
+            String[] parts = keyConfig.split(":");
+            if (parts.length > 0 && parts[0].equals(keyId)) {
+                maxDistance = Double.parseDouble(parts[1].trim());
+                isInterdimensional = Boolean.parseBoolean(parts[2].trim());
+                isRestricted = Boolean.parseBoolean(parts[4].trim()); // Supondo que a restrição de mundo está na posição 4
+                break;
+            }
+        }
+
+        // Verificar se o mundo está na blacklist apenas se a chave for restrita
+        if (isRestricted) {
+            List<String> blacklist = config.getStringList("world_blacklist");
+            if (blacklist.contains(player.getWorld().getName()) && !hasBlacklistBypass) {
+                player.sendMessage("§cVocê não pode usar a chave neste mundo.");
+                return;
+            }
+        }
+
+        if (!isInterdimensional && !player.getWorld().equals(targetLocation.getWorld())) {
+            player.sendMessage("§cEsta chave não pode teletransportar entre dimensões.");
             return;
         }
 
-        boolean isInterdimensional = config.getBoolean("interdimensional", false);
-        if (!isInterdimensional && !player.getWorld().equals(targetLocation.getWorld())) {
-            player.sendMessage("§cEsta chave não pode teletransportar entre dimensões.");
+        if (maxDistance != -1 && player.getWorld().equals(targetLocation.getWorld()) && player.getLocation().distance(targetLocation) > maxDistance) {
+            player.sendMessage("§cA localização alvo está muito longe.");
             return;
         }
 
@@ -170,17 +189,33 @@ public class MagicKey implements Listener {
     }
 
     private void handleKeyCreation(Player player, ItemStack key) {
-        // Verificar se o mundo está na blacklist
-        List<String> blacklist = config.getStringList("world_blacklist");
-        if (blacklist.contains(player.getWorld().getName())) {
-            player.sendMessage("§cVocê não pode criar uma chave neste mundo.");
+        // Verificar se o item é uma chave válida via Oraxen
+        if (!isValidKey(key)) {
+            player.sendMessage("§cErro: O item não é uma chave válida.");
             return;
         }
 
-        // Verificar se o WorldGuard está ativo e se a flag permite a criação de chaves
-        if (plugin.getServer().getPluginManager().isPluginEnabled("WorldGuard")) {
-            if (!isRegionFlagAllowed(player, "MagicKey_create")) {
-                player.sendMessage("§cVocê não pode criar uma chave nesta região.");
+        // Obter o ID da chave
+        String keyId = OraxenItems.getIdByItem(key);
+        boolean isRestricted = false;
+
+        // Verificar a configuração específica da chave
+        List<String> keyConfigs = config.getStringList("magickey.key_id");
+        for (String keyConfig : keyConfigs) {
+            String[] parts = keyConfig.split(":");
+            if (parts.length > 0 && parts[0].equals(keyId)) {
+                if (parts.length > 4) { // Verificar se há pelo menos 5 elementos
+                    isRestricted = Boolean.parseBoolean(parts[4].trim()); // Supondo que a restrição de mundo está na posição 4
+                }
+                break;
+            }
+        }
+
+        // Verificar se o mundo está na blacklist apenas se a chave for restrita
+        if (isRestricted) {
+            List<String> blacklist = config.getStringList("world_blacklist");
+            if (blacklist.contains(player.getWorld().getName())) {
+                player.sendMessage("§cVocê não pode criar uma chave neste mundo.");
                 return;
             }
         }
@@ -246,36 +281,24 @@ public class MagicKey implements Listener {
                     if (configLore.get(i).contains("{uses}")) {
                         if (i < lore.size()) {
                             String usesString = lore.get(i).replaceAll("§.", ""); // Remove os códigos de cor
-                            plugin.getLogger().info("Debug - Lore com potencial uses: " + usesString);
 
                             String[] parts = usesString.split(":");
                             if (parts.length > 1) {
                                 String usesValue = parts[1].trim();
-                                plugin.getLogger().info("Debug - Valor extraído: " + usesValue);
 
                                 // Tentar converter para número, se falhar considerar como "Ilimitado"
                                 try {
                                     int uses = Integer.parseInt(usesValue);
-                                    plugin.getLogger().info("Debug - Usos convertidos para número: " + uses);
                                     return uses;
                                 } catch (NumberFormatException e) {
-                                    plugin.getLogger().info("Debug - Texto não numérico encontrado, considerando ilimitado.");
                                     // Se houver texto, considerar como ilimitado
                                     return -1;
                                 }
-                            } else {
-                                plugin.getLogger().info("Debug - Formato inesperado no lore: " + usesString);
                             }
-                        } else {
-                            plugin.getLogger().info("Debug - Lore no índice " + i + " está fora do tamanho esperado.");
                         }
                     }
                 }
-            } else {
-                plugin.getLogger().info("Debug - ItemMeta não contém lore.");
             }
-        } else {
-            plugin.getLogger().info("Debug - Item não tem meta.");
         }
         return 0; // Retorna 0 se a chave não tiver a lore esperada
     }
@@ -285,31 +308,15 @@ public class MagicKey implements Listener {
             ItemMeta meta = key.getItemMeta();
             if (meta != null && meta.hasLore()) {
                 List<String> lore = meta.getLore();
-
-                // Verificar se é ilimitada
-                int currentUses = getUsesFromKey(key);
-                plugin.getLogger().info("Debug - Usos atuais da chave: " + currentUses);
-
-                if (currentUses == -1) {
-                    plugin.getLogger().info("Debug - Chave ilimitada, não será modificada.");
-                    return; // Não alterar a chave se for ilimitada
-                }
-
-                // Atualizar o valor de usos se não for ilimitado
                 List<String> configLore = config.getStringList("magickey.key_lore");
 
                 for (int i = 0; i < configLore.size(); i++) {
                     if (configLore.get(i).contains("{uses}")) {
                         if (i < lore.size()) {
-                            String usesString = lore.get(i).replaceAll("§.", ""); // Remove os códigos de cor
-                            plugin.getLogger().info("Debug - Atualizando usos na lore: " + usesString);
-
-                            // Atualize o valor da lore com o novo número de usos
-                            lore.set(i, "Usos: " + uses);
+                            String formattedUses = configLore.get(i).replace("{uses}", uses > 0 ? String.valueOf(uses) : "Ilimitado");
+                            lore.set(i, formattedUses);
                             meta.setLore(lore);
                             key.setItemMeta(meta);
-
-                            plugin.getLogger().info("Debug - Usos atualizados para: " + uses);
                             break;
                         }
                     }

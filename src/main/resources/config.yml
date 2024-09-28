@@ -8,9 +8,36 @@ mysql:
   username: user
   password: password
 
+tp_commands:
+  status: true
+  spawn: true #EssentialsMagic.Spawn EssentialsMagic.SetSpawn
+  spawn_cooldown: 5 #EssentialsMagic.Spawn.byPass
+  spawn_cords:
+  tpa: true #EssentialsMagic.Tpa
+  tpa_cooldown: 5 #EssentialsMagic.Tpa.byPass
+  tpa_command_cooldown: 5 #EssentialsMagic.Tpa.byPass
+
 magicfire:
   status: true
   prefix: "&c[Fire]&f"
+  menu:
+    title: "&cMagicFire"
+    size: 54
+    buttons:
+      - spawn:
+          material: spawn
+          name: "&cSpawn"
+          lore:
+              - "&7Teleporta para o spawn."
+          slot: 22
+          action: "/spawn"
+      - magicfire:
+          material: soul_campfire
+          name: "&cMagicFire"
+          lore:
+              - "&7Click para abrir o menu de protais."
+          slot: 40
+          action: magicfire #to direct to menus do not use quotation marks
   portal_ids:
     - chama_dos_sonhos #Base
     - chama_dos_sonhos_ativa #Animation
@@ -44,6 +71,5 @@ magickey:
     premium: 6
   world_teleport_blacklist: #EssentialsMagic.MagicKey.teleport.byPass
     - world_nether
-    - world_the_end
   world_create_blacklist: #EssentialsMagic.MagicKey.Create.byPass
     - world_the_end

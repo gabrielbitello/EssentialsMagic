@@ -34,6 +34,8 @@ public class mf_commands implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!MagicFire.isMagicFireEnabled(plugin)) return true;
+
         if (args.length == 0) {
             sender.sendMessage("§cUso: /magicfire <subcomando>");
             return true;

@@ -1,5 +1,6 @@
 package essentialsmagic.EssentialsMagic.MagicKey;
 
+import essentialsmagic.EssentialsMagic.wg.WorldGuardManager;
 
 import io.th0rgal.oraxen.api.OraxenItems;
 
@@ -38,8 +39,14 @@ public class MagicKey implements Listener {
         Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
+    public static boolean isMagicKeyEnabled(JavaPlugin plugin) {
+        return plugin.getConfig().getBoolean("magickey.status", true);
+    }
+
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
+        if (!isMagicKeyEnabled(plugin)) return;
+
         Player player = event.getPlayer();
         ItemStack item = player.getInventory().getItemInMainHand();
 
@@ -107,6 +114,12 @@ public class MagicKey implements Listener {
             return;
         }
 
+        // Verificar se a região permite o uso de chaves mágicas
+        if (!canUseMagicKey(player)) {
+            player.sendMessage("§cVocê não tem permissão para usar uma chave mágica nesta região.");
+            return;
+        }
+
         // Obter o ID da chave
         String keyId = OraxenItems.getIdByItem(key);
         double maxDistance = -1;
@@ -118,27 +131,33 @@ public class MagicKey implements Listener {
         for (String keyConfig : keyConfigs) {
             String[] parts = keyConfig.split(":");
             if (parts.length > 0 && parts[0].equals(keyId)) {
-                maxDistance = Double.parseDouble(parts[1].trim());
-                isInterdimensional = Boolean.parseBoolean(parts[2].trim());
-                isRestricted = Boolean.parseBoolean(parts[4].trim()); // Supondo que a restrição de mundo está na posição 4
+                if (parts.length > 1) {
+                    maxDistance = Double.parseDouble(parts[1].trim());
+                }
+                if (parts.length > 2) {
+                    isInterdimensional = Boolean.parseBoolean(parts[2].trim());
+                }
+                if (parts.length > 4) {
+                    isRestricted = Boolean.parseBoolean(parts[4].trim());
+                }
                 break;
             }
         }
 
-        // Verificar se o mundo está na blacklist apenas se a chave for restrita
-        if (isRestricted) {
-            List<String> blacklist = config.getStringList("world_blacklist");
-            if (blacklist.contains(player.getWorld().getName()) && !hasBlacklistBypass) {
-                player.sendMessage("§cVocê não pode usar a chave neste mundo.");
-                return;
-            }
+        // Verificar se o mundo atual está na blacklist de teleporte
+        List<String> teleportBlacklist = config.getStringList("magickey.world_teleport_blacklist");
+        if (teleportBlacklist.contains(player.getWorld().getName()) && !hasBlacklistBypass) {
+            player.sendMessage("§cVocê não pode usar a chave para teletransportar deste mundo.");
+            return;
         }
 
+        // Verificar se a chave pode teletransportar entre dimensões
         if (!isInterdimensional && !player.getWorld().equals(targetLocation.getWorld())) {
             player.sendMessage("§cEsta chave não pode teletransportar entre dimensões.");
             return;
         }
 
+        // Verificar a distância máxima permitida
         if (maxDistance != -1 && player.getWorld().equals(targetLocation.getWorld()) && player.getLocation().distance(targetLocation) > maxDistance) {
             player.sendMessage("§cA localização alvo está muito longe.");
             return;
@@ -179,8 +198,6 @@ public class MagicKey implements Listener {
                         if (uses > 0) {
                             updateUsesInKey(key, uses - 1);
                             player.sendMessage("§aUsos restantes da chave: " + (uses - 1));
-                        } else if (uses != -1) { // Verificar se a chave não é ilimitada
-                            player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
                         }
                     }
                 }
@@ -188,10 +205,20 @@ public class MagicKey implements Listener {
         }
     }
 
+    private boolean canUseMagicKey(Player player) {
+        return WorldGuardManager.isRegionFlagAllowed(player, WorldGuardManager.MAGIC_KEY_USE_FLAG);
+    }
+
     private void handleKeyCreation(Player player, ItemStack key) {
         // Verificar se o item é uma chave válida via Oraxen
         if (!isValidKey(key)) {
             player.sendMessage("§cErro: O item não é uma chave válida.");
+            return;
+        }
+
+        // Verificar se a região permite a criação de chaves mágicas
+        if (!canCreateMagicKey(player)) {
+            player.sendMessage("§cVocê não tem permissão para criar uma chave mágica nesta região.");
             return;
         }
 
@@ -211,13 +238,11 @@ public class MagicKey implements Listener {
             }
         }
 
-        // Verificar se o mundo está na blacklist apenas se a chave for restrita
-        if (isRestricted) {
-            List<String> blacklist = config.getStringList("world_blacklist");
-            if (blacklist.contains(player.getWorld().getName())) {
-                player.sendMessage("§cVocê não pode criar uma chave neste mundo.");
-                return;
-            }
+        // Verificar se o mundo está na blacklist de criação de chaves
+        List<String> createBlacklist = config.getStringList("magickey.world_create_blacklist");
+        if (createBlacklist.contains(player.getWorld().getName())) {
+            player.sendMessage("§cVocê não pode criar uma chave neste mundo.");
+            return;
         }
 
         // Deletar a lore antiga da chave
@@ -233,10 +258,8 @@ public class MagicKey implements Listener {
         player.sendMessage("§aChave criada com sucesso.");
     }
 
-    private boolean isRegionFlagAllowed(Player player, String flag) {
-        // Implementar integração com WorldGuard
-        // Aqui você deve implementar a lógica para verificar se a flag está habilitada na região
-        return true; // Placeholder
+    private boolean canCreateMagicKey(Player player) {
+        return WorldGuardManager.isRegionFlagAllowed(player, WorldGuardManager.MAGIC_KEY_CREATE_FLAG);
     }
 
     private Location getTargetLocationFromKey(ItemStack key) {
@@ -313,12 +336,27 @@ public class MagicKey implements Listener {
                 for (int i = 0; i < configLore.size(); i++) {
                     if (configLore.get(i).contains("{uses}")) {
                         if (i < lore.size()) {
-                            String formattedUses = configLore.get(i).replace("{uses}", uses > 0 ? String.valueOf(uses) : "Ilimitado");
-                            lore.set(i, formattedUses);
+                            String formattedUses = configLore.get(i).replace("{uses}", uses > 0 ? String.valueOf(uses) : "§cIlimitado");
+                            lore.set(i, formattedUses.replace("&", "§")); // Aplicar cores
                             meta.setLore(lore);
                             key.setItemMeta(meta);
                             break;
                         }
+                    }
+                }
+
+                // Remover o item se os usos chegarem a 0
+                if (uses == 0) {
+                    // Obter o jogador que está segurando a chave
+                    Player player = null;
+                    for (Player p : Bukkit.getOnlinePlayers()) {
+                        if (p.getInventory().getItemInMainHand().equals(key)) {
+                            player = p;
+                            break;
+                        }
+                    }
+                    if (player != null) {
+                        player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
                     }
                 }
             }

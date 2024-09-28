@@ -7,6 +7,8 @@ import essentialsmagic.EssentialsMagic.MagicKey.MK_MySQL;
 import essentialsmagic.EssentialsMagic.MagicKey.MK_commands;
 import essentialsmagic.EssentialsMagic.MagicKey.MagicKey;
 import essentialsmagic.EssentialsMagic.MagicKey.guis.home_menu;
+import essentialsmagic.EssentialsMagic.OtherCommands.spawn.SetSpawnCommand;
+import essentialsmagic.EssentialsMagic.OtherCommands.spawn.SpawnCommand;
 import essentialsmagic.EssentialsMagic.wg.WorldGuardManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -42,6 +44,9 @@ public final class main extends JavaPlugin {
             new MagicKey(this);
             new home_menu(this);
             new mf_commands(this, mfMySQL);
+
+            getCommand("setspawn").setExecutor(new SetSpawnCommand(this));
+            getCommand("spawn").setExecutor(new SpawnCommand(this));
 
             String message = LegacyComponentSerializer.legacySection().serialize(Component.text("[EssentialsMagic] plugin has been enabled.").color(NamedTextColor.LIGHT_PURPLE));
             Bukkit.getConsoleSender().sendMessage(message);

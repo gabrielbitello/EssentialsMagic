@@ -14,3 +14,11 @@ commands:
     aliases: [mk]
     description: Comando principal do MagicKey
     usage: /<command> <subcommand>
+  setspawn:
+    description: "Define o local de spawn."
+    usage: "/setspawn"
+    permission: "EssentialsMagic.SetSpawn"
+  spawn:
+    description: "Teleporta para o local de spawn."
+    usage: "/spawn"
+    permission: "EssentialsMagic.Spawn"

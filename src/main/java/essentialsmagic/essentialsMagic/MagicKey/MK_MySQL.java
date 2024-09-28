@@ -1,6 +1,8 @@
 package essentialsmagic.EssentialsMagic.MagicKey;
 
 import essentialsmagic.EssentialsMagic.DatabaseManager;
+import essentialsmagic.EssentialsMagic.MagicKey.MagicKey;
+
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.sql.Connection;
@@ -19,6 +21,8 @@ public class MK_MySQL {
     }
 
     private void checkAndCreateTable() {
+        if (!MagicKey.isMagicKeyEnabled(plugin)) return;
+
         String createTableSQL = "CREATE TABLE IF NOT EXISTS magic_keys (" +
                 "id INT AUTO_INCREMENT PRIMARY KEY, " +
                 "player_uuid VARCHAR(36), " +

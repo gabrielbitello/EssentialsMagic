@@ -4,8 +4,6 @@ import com.sk89q.worldguard.LocalPlayer;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
-import com.sk89q.worldguard.protection.flags.Flags;
-import com.sk89q.worldguard.protection.flags.StateFlag;
 import essentialsmagic.EssentialsMagic.MagicFire.guis.tp_menu;
 import essentialsmagic.EssentialsMagic.wg.WorldGuardManager;
 
@@ -28,7 +26,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -50,13 +47,19 @@ public class MagicFire implements Listener {
         this.worldGuardManager = worldGuardManager;
     }
 
+    public static boolean isMagicFireEnabled(JavaPlugin plugin) {
+        return plugin.getConfig().getBoolean("magicfire.status", true);
+    }
+
     @EventHandler
     public void onFurniturePlace(OraxenFurniturePlaceEvent event) {
+        if (!isMagicFireEnabled(plugin)) return;
+
         List<String> portalIds = plugin.getConfig().getStringList("magicfire.portal_ids");
-        event.setCancelled(true); // Cancelar a colocação padrão
 
         String itemId = event.getMechanic().getItemID();
         if (portalIds.contains(itemId)) {
+            event.setCancelled(true); // Cancelar a colocação padrão
             Player player = event.getPlayer();
             Location location = event.getBlock().getLocation();
             LocalPlayer localPlayer = WorldGuardPlugin.inst().wrapPlayer(player);
@@ -116,6 +119,8 @@ public class MagicFire implements Listener {
 
     @EventHandler
     public void onPlayerChat(AsyncPlayerChatEvent event) {
+        if (!isMagicFireEnabled(plugin)) return;
+
         Player player = event.getPlayer();
         if (awaitingPortalName.getOrDefault(player.getUniqueId(), false)) {
             event.setCancelled(true);
@@ -136,6 +141,8 @@ public class MagicFire implements Listener {
 
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
+        if (!isMagicFireEnabled(plugin)) return;
+
         Player player = event.getPlayer();
         if (awaitingPortalName.getOrDefault(player.getUniqueId(), false)) {
             Location initialLocation = playerLocations.get(player.getUniqueId());
@@ -150,6 +157,8 @@ public class MagicFire implements Listener {
 
     @EventHandler
     public void onFurnitureBreak(OraxenFurnitureBreakEvent event) {
+        if (!isMagicFireEnabled(plugin)) return;
+
         List<String> portalIds = plugin.getConfig().getStringList("magicfire.portal_ids");
         if (portalIds.contains(event.getMechanic().getItemID())) {
             Location location = event.getBlock().getLocation();
@@ -160,6 +169,8 @@ public class MagicFire implements Listener {
 
     @EventHandler
     public void onFurnitureInteract(OraxenFurnitureInteractEvent event) {
+        if (!isMagicFireEnabled(plugin)) return;
+
         Player player = event.getPlayer();
         String mechanicItemId = event.getMechanic().getItemID();
         List<String> portalIds = plugin.getConfig().getStringList("magicfire.portal_ids");
@@ -169,6 +180,8 @@ public class MagicFire implements Listener {
             String portalKeyId = plugin.getConfig().getString("magicfire.portal_key_id", "po_dos_sonhos");
 
             if (itemInHand != null && portalKeyId.equals(OraxenItems.getIdByItem(itemInHand))) {
+                // Verificar o tipo de clique usando PlayerInteractEvent
+                player.sendMessage("§aVocê interagiu com o portal com a chave correta.");
                 Location fireLocation = event.getBlock().getLocation();
                 tpMenu.openMenu(player, fireLocation);
             } else {

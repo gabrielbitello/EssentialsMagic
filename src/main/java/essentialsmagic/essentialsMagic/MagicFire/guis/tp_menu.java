@@ -5,10 +5,9 @@ import essentialsmagic.EssentialsMagic.MagicFire.MF_MySQL;
 
 import io.th0rgal.oraxen.api.OraxenFurniture;
 import io.th0rgal.oraxen.api.OraxenItems;
-import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.*;
 import org.bukkit.block.BlockFace;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -16,52 +15,141 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.ChatColor;
 
 import java.util.*;
 
 public class tp_menu implements Listener {
     private final JavaPlugin plugin;
     private final MF_MySQL mfMySQL;
+    private final FileConfiguration config;
     private Location fireLocation;
     private Runnable onClose;
 
     public tp_menu(JavaPlugin plugin, MF_MySQL mfMySQL) {
+
         this.plugin = plugin;
         this.mfMySQL = mfMySQL;
+        this.config = plugin.getConfig();
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
     public void openMenu(Player player, Location fireLocation) {
-        try {
-            this.fireLocation = fireLocation;
-            Inventory inv = Bukkit.createInventory(null, 54, "Teleportar");
-            ItemStack glassPane = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
-            ItemMeta glassMeta = glassPane.getItemMeta();
-            glassMeta.setDisplayName(" ");
-            glassPane.setItemMeta(glassMeta);
+        this.fireLocation = fireLocation;
+        String menuTitle = colorize(config.getString("magicfire.menu.title", "&cMenu")); // Título do menu
+        int menuSize = config.getInt("magicfire.menu.size", 54); // Tamanho do menu
 
-            for (int i = 0; i < inv.getSize(); i++) {
-                inv.setItem(i, glassPane);
+        Inventory menu = Bukkit.createInventory(null, menuSize, menuTitle);
+
+        List<Map<?, ?>> buttons = config.getMapList("magicfire.menu.buttons");
+        for (Map<?, ?> button : buttons) {
+            // Processa cada botão e adiciona ao menu
+            addButton(menu, button);
+        }
+
+        player.openInventory(menu);
+    }
+
+    private void addButton(Inventory menu, Map<?, ?> buttonConfig) {
+        for (Object key : buttonConfig.keySet()) {
+            Map<?, ?> config = (Map<?, ?>) buttonConfig.get(key);
+
+            String materialName = (String) config.get("material");
+            String displayName = (String) config.get("name");
+            List<String> loreList = (List<String>) config.get("lore");
+            Integer slot = (Integer) config.get("slot");
+            String action = (String) config.get("action");
+
+            if (materialName == null || displayName == null || loreList == null || slot == null || action == null) {
+                plugin.getLogger().severe("Invalid button configuration: " + config);
+                continue;
             }
 
-            ItemStack netherStar = new ItemStack(Material.NETHER_STAR);
-            ItemMeta netherStarMeta = netherStar.getItemMeta();
-            netherStarMeta.setDisplayName("§dSpawn");
-            netherStar.setItemMeta(netherStarMeta);
-            inv.setItem(22, netherStar);
+            ItemStack item = getItem(materialName);
+            if (item == null) {
+                item = new ItemStack(Material.STONE); // Fallback para pedra
+            }
 
-            ItemStack blueFire = new ItemStack(Material.SOUL_CAMPFIRE);
-            ItemMeta blueFireMeta = blueFire.getItemMeta();
-            blueFireMeta.setDisplayName("§bChamas mágicas");
-            blueFire.setItemMeta(blueFireMeta);
-            inv.setItem(40, blueFire);
+            ItemMeta meta = item.getItemMeta();
+            if (meta != null) {
+                meta.setDisplayName(colorize(displayName));
+                List<String> lore = new ArrayList<>();
+                for (String loreLine : loreList) {
+                    lore.add(colorize(loreLine)); // Aplica cor nas linhas de lore
+                }
+                meta.setLore(lore);
 
-            player.openInventory(inv);
-        } catch (Exception e) {
-            plugin.getLogger().severe("An error occurred while opening the menu: " + e.getMessage());
-            e.printStackTrace();
+                // Armazena a ação no PersistentDataContainer
+                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "action"), PersistentDataType.STRING, action);
+                item.setItemMeta(meta);
+            }
+
+            menu.setItem(slot, item);
+        }
+    }
+
+    private ItemStack getItem(String materialName) {
+        Plugin oraxenPlugin = Bukkit.getPluginManager().getPlugin("Oraxen");
+        ItemStack item = null;
+
+        if (oraxenPlugin != null && oraxenPlugin.isEnabled()) {
+            // Se Oraxen estiver ativo, tenta buscar o item pelo ID do Oraxen
+            var oraxenItem = OraxenItems.getItemById(materialName);
+            if (oraxenItem != null) {
+                item = oraxenItem.build();
+            }
+        }
+
+        if (item == null) {
+            // Tenta buscar o material padrão do Minecraft
+            try {
+                Material material = Material.valueOf(materialName.toUpperCase());
+                item = new ItemStack(material);
+            } catch (IllegalArgumentException e) {
+                // Se não encontrar o material, retorna nulo
+                item = null;
+            }
+        }
+
+        return item;
+    }
+
+    private ItemStack getOraxenItem(String materialName) {
+        // Implementação para pegar item do Oraxen
+        // Precisa do API do Oraxen para buscar itens customizados
+        return null; // Substitua com a chamada correta para Oraxen
+    }
+
+    private String colorize(String text) {
+        return text != null ? text.replace("&", "§") : "";
+    }
+
+    @EventHandler
+    public void onMenuClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player)) return;
+        Player player = (Player) event.getWhoClicked();
+
+        // Verifica se o menu é o MagicFire
+        String title = event.getView().getTitle();
+        if (!title.equals(colorize(config.getString("magicfire.menu.title")))) return;
+
+        event.setCancelled(true); // Previne pegar o item
+
+        ItemStack currentItem = event.getCurrentItem();
+        if (currentItem == null || !currentItem.hasItemMeta()) return;
+
+        ItemMeta meta = currentItem.getItemMeta();
+        String action = meta.getPersistentDataContainer().get(new NamespacedKey(plugin, "action"), PersistentDataType.STRING);
+        if (action == null || action.isEmpty()) return;
+
+        if (action.startsWith("/")) {
+            // Trata como comando, executa o comando
+            player.performCommand(action.substring(1));
+        } else {
+            // Trata como menu, abre o menu intermediário
+            openIntermediateMenu(player);
         }
     }
 
@@ -211,31 +299,6 @@ public class tp_menu implements Listener {
             player.openInventory(portalInv);
         } catch (Exception e) {
             plugin.getLogger().severe("An error occurred while opening the portal menu: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    @EventHandler
-    public void onInventoryClick(InventoryClickEvent event) {
-        try {
-            if (event.getView().getTitle().equals("Teleportar")) {
-                event.setCancelled(true);
-                Player player = (Player) event.getWhoClicked();
-                ItemStack clickedItem = event.getCurrentItem();
-                if (clickedItem == null || clickedItem.getType() == Material.AIR) {
-                    return;
-                }
-
-                if (clickedItem.getType() == Material.NETHER_STAR) {
-                    player.closeInventory();
-                    player.performCommand("spawn");
-                } else if (clickedItem.getType() == Material.SOUL_CAMPFIRE) {
-                    player.closeInventory();
-                    openIntermediateMenu(player);
-                }
-            }
-        } catch (Exception e) {
-            plugin.getLogger().severe("An error occurred while handling inventory click: " + e.getMessage());
             e.printStackTrace();
         }
     }

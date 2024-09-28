@@ -2,6 +2,8 @@ package essentialsmagic.EssentialsMagic.MagicFire;
 
 import essentialsmagic.EssentialsMagic.DatabaseManager;
 import essentialsmagic.EssentialsMagic.MagicFire.guis.tp_menu;
+import essentialsmagic.EssentialsMagic.MagicFire.MagicFire;
+
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
 import net.luckperms.api.model.user.User;
@@ -32,6 +34,8 @@ public class MF_MySQL {
     }
 
     private void checkAndCreateTable() {
+        if (!MagicFire.isMagicFireEnabled(plugin)) return;
+
         String createTableSQL = "CREATE TABLE IF NOT EXISTS warp_network (" +
                 "id INT AUTO_INCREMENT PRIMARY KEY, " +
                 "player_uuid VARCHAR(36), " +

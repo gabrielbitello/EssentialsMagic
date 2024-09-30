@@ -105,8 +105,8 @@ public class MagicKey implements Listener {
         LuckPerms luckPerms = LuckPermsProvider.get();
         User user = luckPerms.getUserManager().getUser(player.getUniqueId());
 
-        boolean hasCooldownBypass = user != null && user.getNodes().contains(Node.builder("magicKey.bypass.cooldown").build());
-        boolean hasBlacklistBypass = user != null && user.getNodes().contains(Node.builder("magicKey.bypass.blacklist").build());
+        boolean hasCooldownBypass = user != null && user.getNodes().contains(Node.builder("EssentialsMagic.MagicKey.time.byPass").build());
+        boolean hasBlacklistBypass = user != null && user.getNodes().contains(Node.builder("EssentialsMagic.MagicKey.teleport.byPass").build());
 
         Location targetLocation = getTargetLocationFromKey(key);
         if (targetLocation == null) {
@@ -168,7 +168,6 @@ public class MagicKey implements Listener {
             player.sendMessage("§cEsta chave não tem mais usos.");
             if (uses != -1) { // Verificar se a chave não é ilimitada
                 player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
-                plugin.getLogger().info("Debug - Chave removida do inventário do jogador.");
             }
             return;
         }
@@ -185,7 +184,7 @@ public class MagicKey implements Listener {
                 player.sendMessage("§aUsos restantes da chave: " + (uses - 1));
             }
         } else {
-            int cooldown = config.getInt("key_cooldown", 8); // Usar a chave correta
+            int cooldown = config.getInt("magickey.key_cooldown", 8); // Usar a chave correta
             player.sendMessage("§aCooldown de teleporte configurado: " + cooldown + " segundos.");
 
             new BukkitRunnable() {

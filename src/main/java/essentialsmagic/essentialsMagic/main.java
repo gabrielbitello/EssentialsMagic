@@ -40,13 +40,16 @@ public final class main extends JavaPlugin {
             mfMySQL = new MF_MySQL(this, config);
             mkMySQL = new MK_MySQL(this);
 
-            new MK_commands(this, mkMySQL);
-            new MagicKey(this);
-            new home_menu(this);
-            new mf_commands(this, mfMySQL);
-
+            // Registrar comandos
+            MK_commands mkCommands = new MK_commands(this, mkMySQL);
+            getCommand("home").setExecutor(mkCommands);
+            getCommand("home").setTabCompleter(mkCommands);
             getCommand("setspawn").setExecutor(new SetSpawnCommand(this));
             getCommand("spawn").setExecutor(new SpawnCommand(this));
+
+            new MagicKey(this);
+            new home_menu(this, mkMySQL);
+            new mf_commands(this, mfMySQL);
 
             String message = LegacyComponentSerializer.legacySection().serialize(Component.text("[EssentialsMagic] plugin has been enabled.").color(NamedTextColor.LIGHT_PURPLE));
             Bukkit.getConsoleSender().sendMessage(message);

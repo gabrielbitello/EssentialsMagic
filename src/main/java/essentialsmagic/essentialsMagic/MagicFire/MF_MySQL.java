@@ -219,10 +219,6 @@ public class MF_MySQL {
         }
     }
 
-    public void closeConnection() {
-        DatabaseManager.closeConnection(this.plugin);
-    }
-
     private int getMaxPortals(Player player) {
         if (config.getBoolean("use_luckperms", true)) {
             Plugin luckPermsPlugin = Bukkit.getPluginManager().getPlugin("LuckPerms");
@@ -231,7 +227,7 @@ public class MF_MySQL {
                 User user = luckPerms.getUserManager().getUser(player.getUniqueId());
                 if (user != null) {
                     for (String role : config.getConfigurationSection("magicfire.roles").getKeys(false)) {
-                        if (user.getNodes().contains(Node.builder("EssentialsMagic.MagicFire." + role).build())) {
+                        if (player.hasPermission("EssentialsMagic.MagicFire." + role)) {
                             return config.getInt("magicfire.roles." + role);
                         }
                     }

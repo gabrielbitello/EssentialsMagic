@@ -17,6 +17,8 @@ public class WorldGuardManager {
     public static StateFlag MAGIC_FIRE_FLAG;
     public static StateFlag MAGIC_KEY_CREATE_FLAG;
     public static StateFlag MAGIC_KEY_USE_FLAG;
+    public static StateFlag HOME_CREATE_FLAG;
+    public static StateFlag HOME_TELEPORT_FLAG;
 
     public WorldGuardManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -66,6 +68,38 @@ public class WorldGuardManager {
             if (existing instanceof StateFlag) {
                 MAGIC_KEY_USE_FLAG = (StateFlag) existing;
                 plugin.getLogger().info("Flag 'magickey-use' already exists, using the existing flag.");
+            } else {
+                plugin.getLogger().severe("Flag conflict detected and could not resolve it!");
+                plugin.getServer().getPluginManager().disablePlugin(plugin);
+            }
+        }
+
+        try {
+            StateFlag homeCreateFlag = new StateFlag("home-create", true);  // ALLOW by default
+            registry.register(homeCreateFlag);
+            HOME_CREATE_FLAG = homeCreateFlag;
+            plugin.getLogger().info("Flag 'home-create' registered successfully.");
+        } catch (FlagConflictException e) {
+            Flag<?> existing = registry.get("home-create");
+            if (existing instanceof StateFlag) {
+                HOME_CREATE_FLAG = (StateFlag) existing;
+                plugin.getLogger().info("Flag 'home-create' already exists, using the existing flag.");
+            } else {
+                plugin.getLogger().severe("Flag conflict detected and could not resolve it!");
+                plugin.getServer().getPluginManager().disablePlugin(plugin);
+            }
+        }
+
+        try {
+            StateFlag homeTeleportFlag = new StateFlag("home-teleport", true);  // ALLOW by default
+            registry.register(homeTeleportFlag);
+            HOME_TELEPORT_FLAG = homeTeleportFlag;
+            plugin.getLogger().info("Flag 'home-teleport' registered successfully.");
+        } catch (FlagConflictException e) {
+            Flag<?> existing = registry.get("home-teleport");
+            if (existing instanceof StateFlag) {
+                HOME_TELEPORT_FLAG = (StateFlag) existing;
+                plugin.getLogger().info("Flag 'home-teleport' already exists, using the existing flag.");
             } else {
                 plugin.getLogger().severe("Flag conflict detected and could not resolve it!");
                 plugin.getServer().getPluginManager().disablePlugin(plugin);

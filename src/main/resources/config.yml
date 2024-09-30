@@ -66,6 +66,8 @@ magickey:
     - "&7Usos: &c{uses}"
   home: true #EssentialsMagic.MagicKey.home
   home_cooldown: 5 #EssentialsMagic.MagicKey.home.byPass
+  home_gui: true
+  home_icon: bed
   key_storage_role: #EssentialsMagic.MagicKey.<role>
     vip: 4
     premium: 6

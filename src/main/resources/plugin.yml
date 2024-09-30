@@ -22,3 +22,7 @@ commands:
     description: "Teleporta para o local de spawn."
     usage: "/spawn"
     permission: "EssentialsMagic.Spawn"
+  home:
+    description: "Comando para definir e teleportar para a home."
+    usage: "/home [set]"
+    permission: "EssentialsMagic.Home"

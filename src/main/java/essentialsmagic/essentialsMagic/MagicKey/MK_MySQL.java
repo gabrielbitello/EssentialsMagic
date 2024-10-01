@@ -31,8 +31,8 @@ public class MK_MySQL {
                 "y DOUBLE NOT NULL," +
                 "z DOUBLE NOT NULL," +
                 "yaw VARCHAR(255) NOT NULL," +
-                "`MK-a` VARCHAR(255) NULL," +
-                "`MK-b` VARCHAR(255) NULL" +
+                "`MK-a` VARCHAR(800) NULL," +
+                "`MK-b` VARCHAR(2000) NULL" +
                 ");";
 
         try (PreparedStatement statement = connection.prepareStatement(createTableSQL)) {
@@ -79,9 +79,18 @@ public class MK_MySQL {
     }
 
     public void savePortalKey(UUID playerId, String keyData) {
-        String query = "UPDATE MK_Homes SET `MK-a` = CONCAT(IFNULL(`MK-a`, ''), ?) WHERE player_id = ?";
+        String existingData = loadPortalKey(playerId);
+        String newData = (existingData == null ? "" : existingData) + keyData + "/";
+
+        // Verificar o tamanho da string antes de salvar
+        if (newData.length() > 800) {
+            plugin.getLogger().severe("Erro: Dados da chave são muito longos para salvar no banco de dados.");
+            return;
+        }
+
+        String query = "UPDATE MK_Homes SET `MK-a` = ? WHERE player_id = ?";
         try (PreparedStatement statement = connection.prepareStatement(query)) {
-            statement.setString(1, keyData + "/");
+            statement.setString(1, newData);
             statement.setString(2, playerId.toString());
             statement.executeUpdate();
         } catch (SQLException e) {

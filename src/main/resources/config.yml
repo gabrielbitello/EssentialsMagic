@@ -1,6 +1,7 @@
 use_luckperms: false
 use_worldguard: false
 
+
 mysql:
   host: localhost
   port: 3306
@@ -8,14 +9,16 @@ mysql:
   username: user
   password: password
 
+
 tp_commands:
   status: true
   spawn: true #EssentialsMagic.Spawn EssentialsMagic.SetSpawn
   spawn_cooldown: 5 #EssentialsMagic.Spawn.byPass
   spawn_cords:
-  tpa: true #EssentialsMagic.Tpa
-  tpa_cooldown: 5 #EssentialsMagic.Tpa.byPass
-  tpa_command_cooldown: 5 #EssentialsMagic.Tpa.byPass
+  #tpa: true #EssentialsMagic.Tpa
+  #tpa_cooldown: 5 #EssentialsMagic.Tpa.byPass
+  #tpa_command_cooldown: 5 #EssentialsMagic.Tpa.byPass
+
 
 magicfire:
   status: true

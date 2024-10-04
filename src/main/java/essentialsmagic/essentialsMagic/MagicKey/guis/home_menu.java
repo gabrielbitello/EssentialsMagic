@@ -1,18 +1,22 @@
 package essentialsmagic.EssentialsMagic.MagicKey.guis;
 
 import essentialsmagic.EssentialsMagic.MagicKey.MK_MySQL;
+import static essentialsmagic.EssentialsMagic.Utilities.colorize;
+
 import io.th0rgal.oraxen.api.OraxenItems;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.*;
@@ -20,37 +24,57 @@ import java.util.*;
 public class home_menu implements Listener {
     private final JavaPlugin plugin;
     private final MK_MySQL database;
+    private final FileConfiguration config;
     private final Map<UUID, Long> cooldowns;
-    private final Map<UUID, Long> lastClickTimes;
-
+    private final String menuTitle;
 
     public home_menu(JavaPlugin plugin, MK_MySQL database) {
         this.plugin = plugin;
         this.database = database;
+        this.config = plugin.getConfig();
         this.cooldowns = new HashMap<>();
-        this.lastClickTimes = new HashMap<>();
+        this.menuTitle = colorize(plugin.getConfig().getString("magickey.menu_title", "Home Menu"));
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
     public void openHomeMenu(Player player) {
-        Inventory gui = Bukkit.createInventory(null, 45, "Home Menu");
+        Inventory gui = Bukkit.createInventory(null, config.getInt("magickey.menu.size", 45), menuTitle);
 
-        // Ícone central
-        ItemStack homeIcon = new ItemStack(Material.valueOf(plugin.getConfig().getString("home_icon", "RED_BED").toUpperCase()));
+        // Central Icon
+        ItemStack homeIcon;
+        String oraxenItemId = config.getString("magickey.menu.buttons.Home.material", "RED_BED").toUpperCase();
+
+        if (OraxenItems.exists(oraxenItemId)) {
+            homeIcon = OraxenItems.getItemById(oraxenItemId).build();
+        } else {
+            homeIcon = createItemStack(Material.valueOf(oraxenItemId), colorize(config.getString("magickey.menu.buttons.Home.name", "§aHome")), colorizeList(config.getStringList("magickey.menu.buttons.Home.lore")));
+        }
+
+        // Adiciona metadado invisível
         ItemMeta homeMeta = homeIcon.getItemMeta();
         if (homeMeta != null) {
-            homeMeta.setDisplayName("§aHome");
-            homeMeta.setLore(Arrays.asList("§7Clique para ir para casa"));
+            NamespacedKey keyNamespace = new NamespacedKey(plugin, "MenuHomeTP");
+            homeMeta.getPersistentDataContainer().set(keyNamespace, PersistentDataType.STRING, "HomeTP");
             homeIcon.setItemMeta(homeMeta);
         }
-        gui.setItem(22, homeIcon); // Central slot in a 5x9 inventory
 
-        // Carregar chaves do MySQL
+        gui.setItem(config.getInt("magickey.menu.buttons.Home.slot", 22), homeIcon); // Central slot
+
+        // Load keys from database
+        populateKeysInMenu(gui, player);
+
+        // Add Nether Stars
+        addNetherStars(gui, player);
+
+        player.openInventory(gui);
+    }
+
+    private void populateKeysInMenu(Inventory gui, Player player) {
         String keyData = database.loadPortalKey(player.getUniqueId());
-        boolean[] occupiedSlots = new boolean[45];
+        boolean[] occupiedSlots = new boolean[gui.getSize()];
+
         if (keyData != null) {
-            String[] keys = keyData.split("/");
-            for (String key : keys) {
+            for (String key : keyData.split("/")) {
                 String[] keyParts = key.split(":");
                 if (keyParts.length == 6) {
                     String keyName = keyParts[0];
@@ -59,334 +83,343 @@ public class home_menu implements Listener {
                     int uses = Integer.parseInt(keyParts[3]);
                     String material = keyParts[4];
                     int slot = Integer.parseInt(keyParts[5]);
-                    ItemStack keyItem;
 
-                    // Verificar se o item é do Oraxen
-                    if (OraxenItems.exists(material)) {
-                        keyItem = OraxenItems.getItemById(material).build();
-                    } else {
-                        keyItem = new ItemStack(Material.valueOf(material));
+                    ItemStack keyItem = OraxenItems.exists(material)
+                            ? OraxenItems.getItemById(material).build()
+                            : new ItemStack(Material.valueOf(material));
+
+                    setKeyItemMeta(keyItem, keyName, creator, location, uses);
+
+                    // Adiciona metadado invisível
+                    ItemMeta meta = keyItem.getItemMeta();
+                    if (meta != null) {
+                        NamespacedKey keyNamespace = new NamespacedKey(plugin, "MenuKey");
+                        meta.getPersistentDataContainer().set(keyNamespace, PersistentDataType.STRING, "MenuKey");
+                        keyItem.setItemMeta(meta);
                     }
 
-                    ItemMeta keyMeta = keyItem.getItemMeta();
-                    if (keyMeta != null) {
-                        keyMeta.setDisplayName(keyName);
-
-                        // Reconstruir a lore com os dados do MySQL
-                        List<String> lore = plugin.getConfig().getStringList("magickey.key_lore");
-                        for (int i = 0; i < lore.size(); i++) {
-                            lore.set(i, lore.get(i)
-                                    .replace("{player}", creator)
-                                    .replace("{location}", location)
-                                    .replace("{uses}", uses == -1 ? "ilimitado" : String.valueOf(uses))
-                                    .replace("&", "§")); // Formatar códigos de cor
-                        }
-                        keyMeta.setLore(lore);
-                        keyItem.setItemMeta(keyMeta);
-                    }
                     gui.setItem(slot, keyItem);
                     occupiedSlots[slot] = true;
                 }
             }
         }
+    }
 
-        // Estrelas do Nether
-        ItemStack netherStar = new ItemStack(Material.NETHER_STAR);
-        ItemMeta starMeta = netherStar.getItemMeta();
-        if (starMeta != null) {
-            starMeta.setDisplayName("§eEstrela do Nether");
-            netherStar.setItemMeta(starMeta);
+    private void addNetherStars(Inventory gui, Player player) {
+        String netherStarIconId = config.getString("magickey.menu.buttons.keySlot.material", "NETHER_STAR").toUpperCase();
+
+        ItemStack netherStar;
+        if (OraxenItems.exists(netherStarIconId)) {
+            netherStar = OraxenItems.getItemById(netherStarIconId).build();
+        } else {
+            netherStar = createItemStack(Material.valueOf(netherStarIconId), colorize(config.getString("magickey.menu.buttons.keySlot.name", "§ePorta chave")), colorizeList(config.getStringList("magickey.menu.buttons.keySlot.lore")));
         }
 
-        int[] starSlots = {0, 2, 4, 6, 8, 10, 12, 14, 16, 28, 30, 32, 34, 36, 38, 40, 42, 44};
-        for (int slot : starSlots) {
-            if (!occupiedSlots[slot]) {
+        List<Integer> slots = new ArrayList<>();
+        Map<String, List<Integer>> roles = new LinkedHashMap<>();
+
+        // Adiciona os slots do cargo Default
+        List<Integer> defaultSlots = config.getIntegerList("magickey.menu.buttons.keySlot.roles.Default");
+        roles.put("Default", defaultSlots);
+
+        // Adiciona os slots dos outros cargos dinamicamente
+        for (String role : config.getConfigurationSection("magickey.menu.buttons.keySlot.roles").getKeys(false)) {
+            if (!role.equals("Default") && player.hasPermission("EssentialsMagic.MagicKey.home." + role)) {
+                List<Integer> roleSlots = config.getIntegerList("magickey.menu.buttons.keySlot.roles." + role);
+                roles.put(role, roleSlots);
+            }
+        }
+
+        // Adiciona os slots de acordo com a hierarquia
+        for (List<Integer> roleSlots : roles.values()) {
+            slots.addAll(roleSlots);
+        }
+
+        for (int slot : slots) {
+            if (gui.getItem(slot) == null || gui.getItem(slot).getType() == Material.AIR) {
+                // Adiciona metadado invisível
+                ItemMeta meta = netherStar.getItemMeta();
+                if (meta != null) {
+                    NamespacedKey keyNamespace = new NamespacedKey(plugin, "MenuKeySlot");
+                    meta.getPersistentDataContainer().set(keyNamespace, PersistentDataType.STRING, "MenuKeySlot");
+                    netherStar.setItemMeta(meta);
+                }
                 gui.setItem(slot, netherStar);
             }
         }
+    }
 
-        player.openInventory(gui);
+    private List<String> colorizeList(List<String> list) {
+        List<String> colorizedList = new ArrayList<>();
+        for (String line : list) {
+            colorizedList.add(colorize(line));
+        }
+        return colorizedList;
     }
 
     @EventHandler
-    public void onInventoryClick(InventoryClickEvent event) {
-        if (event.getView().getTitle().equals("Home Menu")) {
-            event.setCancelled(true);  // Cancela qualquer ação no inventário
-            Player player = (Player) event.getWhoClicked();
-            UUID playerId = player.getUniqueId();
-            long currentTime = System.currentTimeMillis();
+    public void onMenuClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player)) return;
+        Player player = (Player) event.getWhoClicked();
 
-            // Verifica se o tempo desde o último clique é maior que 750ms
-            if (lastClickTimes.containsKey(playerId) && (currentTime - lastClickTimes.get(playerId)) < 750) {
-                return;  // Ignora cliques subsequentes em um intervalo de 750ms
-            }
+        // Verifica se o menu é o MagicFire
+        String title = event.getView().getTitle();
+        if (!title.equals(colorize(menuTitle))) return;
 
-            lastClickTimes.put(playerId, currentTime);  // Atualiza o tempo do último clique
+        event.setCancelled(true);
 
-            // Verifica se o item clicado não é nulo ou ar
-            ItemStack clickedItem = event.getCurrentItem();
-            if (clickedItem == null || clickedItem.getType() == Material.AIR) {
-                return;
-            }
+        ItemStack currentItem = event.getCurrentItem();
+        if (currentItem == null || currentItem.getType() == Material.AIR) return;
 
-            // Lida com diferentes interações com o inventário
-            if (event.getAction() == InventoryAction.PICKUP_ALL) {
-                if (clickedItem.getType() == Material.valueOf(plugin.getConfig().getString("home_icon", "RED_BED").toUpperCase())) {
-                    player.performCommand("home");
-                    player.closeInventory();
-                } else if (clickedItem.getType() == Material.NETHER_STAR) {
-                    ItemStack handItem = player.getInventory().getItemInMainHand();
-                    if (handItem != null && handItem.getType() != Material.AIR) {
-                        savePortalKey(player, handItem, event.getSlot());
-                        event.getInventory().setItem(event.getSlot(), handItem);
-                        player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
-                    }
-                } else {
-                    // Verificar se o slot contém uma chave de portal
-                    String keyData = database.loadPortalKey(player.getUniqueId());
-                    if (keyData != null) {
-                        String[] keys = keyData.split("/");
-                        for (String key : keys) {
-                            String[] keyParts = key.split(":");
-                            if (keyParts.length == 6) {
-                                int slot = Integer.parseInt(keyParts[5]);
-                                if (event.getSlot() == slot) {
-                                    usePortalKey(player, clickedItem);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+        ItemMeta meta = currentItem.getItemMeta();
+        if (meta == null) return;
 
-    private void usePortalKey(Player player, ItemStack key) {
-        if (!canTeleport(player)) {
-            return;
-        }
+        // Lista de metadados para diferentes ações
+        List<NamespacedKey> keys = Arrays.asList(
+                new NamespacedKey(plugin, "MenuHomeTP"),
+                new NamespacedKey(plugin, "MenuKey"),
+                new NamespacedKey(plugin, "MenuKeySlot")
+        );
 
-        String keyName = key.getItemMeta().getDisplayName();
-        List<String> lore = key.getItemMeta().getLore();
-        String location = "";
-
-        // Filtrar e identificar a localização na lore
-        for (String line : lore) {
-            line = line.replaceAll("§[0-9a-fk-or]", ""); // Remover códigos de cores
-            if (line.contains("Local:")) {
-                location = line.replace("Local:", "").trim();
+        String action = null;
+        for (NamespacedKey key : keys) {
+            if (meta.getPersistentDataContainer().has(key, PersistentDataType.STRING)) {
+                action = meta.getPersistentDataContainer().get(key, PersistentDataType.STRING);
                 break;
             }
         }
 
-        // Adicionar mensagem de depuração para verificar a localização extraída
-        player.sendMessage("§aLocalização extraída: " + location);
-
-        if (!location.isEmpty()) {
-            // Verificar se a localização está no formato correto
-            String[] parts = location.split(",");
-            if (parts.length == 4) {
-                try {
-                    String worldName = parts[0].trim();
-                    double x = Double.parseDouble(parts[1].trim());
-                    double y = Double.parseDouble(parts[2].trim());
-                    double z = Double.parseDouble(parts[3].trim());
-                    Location teleportLocation = new Location(Bukkit.getWorld(worldName), x, y, z);
-                    player.teleport(teleportLocation);
-                    player.sendMessage("§aTeletransportado para: " + location);
-                    decreaseKeyUses(player, key);
-                } catch (NumberFormatException e) {
-                    player.sendMessage("§cErro ao interpretar as coordenadas de teleporte.");
-                }
-            } else {
-                player.sendMessage("§cFormato de localização inválido. Esperado: mundo,x,y,z");
+        if (action != null) {
+            switch (action) {
+                case "HomeTP":
+                    player.performCommand("home");
+                    break;
+                case "MenuKey":
+                    handlePortalKeyClick(player, currentItem, event.getSlot());
+                    break;
+                case "MenuKeySlot":
+                    handleNetherStarClick(player, event.getSlot());
+                    break;
+                default:
+                    player.sendMessage("§cAção desconhecida.");
+                    break;
             }
-        } else {
-            player.sendMessage("§cLocalização não encontrada na chave.");
+            player.closeInventory();
         }
     }
 
-    private void decreaseKeyUses(Player player, ItemStack key) {
-        String keyName = key.getItemMeta().getDisplayName();
-        List<String> lore = key.getItemMeta().getLore();
-        String location = "";
-        int uses = 0;
+    private void handleNetherStarClick(Player player, int slot) {
+        ItemStack handItem = player.getInventory().getItemInMainHand();
+        if (handItem != null && handItem.getType() != Material.AIR) {
+            savePortalKey(player, handItem, slot);
+            handItem.setAmount(handItem.getAmount() - 1); // Decrementa a quantidade do item em 1
+            player.sendMessage("§aChave de portal salva com sucesso.");
+        } else {
+            player.sendMessage("§cNenhum item válido na mão para salvar como chave de portal.");
+        }
+    }
 
-        // Filtrar e identificar a localização e usos na lore
+    private void handlePortalKeyClick(Player player, ItemStack key, int slot) {
+        if (canTeleport(player)) {
+            String location = extractLocationFromLore(key.getItemMeta().getLore());
+            if (!location.isEmpty()) {
+                teleportPlayer(player, location);
+                decreaseKeyUses(player, key, slot);
+            } else {
+                player.sendMessage("§cLocalização não encontrada na chave.");
+            }
+        }
+    }
+
+    private String extractLocationFromLore(List<String> lore) {
+        List<String> keyLoreConfig = plugin.getConfig().getStringList("magickey.key_lore");
+        String locationPattern = keyLoreConfig.stream()
+                .filter(line -> line.contains("{location}"))
+                .findFirst()
+                .orElse("&7Local: &c{location}");
+
         for (String line : lore) {
-            line = line.replaceAll("§[0-9a-fk-or]", ""); // Remover códigos de cores
-            if (line.contains("Local:")) {
-                location = line.replace("Local:", "").trim();
-            } else if (line.contains("Usos:")) {
-                if (line.contains("ilimitado")) {
-                    uses = -1;
-                } else {
-                    try {
-                        uses = Integer.parseInt(line.replace("Usos:", "").trim());
-                    } catch (NumberFormatException e) {
-                        uses = 0; // Valor padrão em caso de erro
-                    }
+            line = colorize(line);
+            String patternWithoutPlaceholder = locationPattern.replace("{location}", "").replace("&", "§");
+            if (line.contains(patternWithoutPlaceholder)) {
+                String location = line.replace(patternWithoutPlaceholder, "").trim();
+                return location;
+            }
+        }
+        return "";
+    }
+
+    private String extractCreatorFromLore(List<String> lore) {
+        List<String> keyLoreConfig = plugin.getConfig().getStringList("magickey.key_lore");
+        String creatorPattern = keyLoreConfig.stream()
+                .filter(line -> line.contains("{player}"))
+                .findFirst()
+                .orElse("&7Chave criada por &c{player}");
+
+        for (String line : lore) {
+            line = colorize(line);
+            String patternWithoutPlaceholder = creatorPattern.replace("{player}", "").replace("&", "§");
+            if (line.contains(patternWithoutPlaceholder)) {
+                String creator = line.replace(patternWithoutPlaceholder, "").trim();
+                return creator;
+            }
+        }
+        return "";
+    }
+
+    private int extractUsesFromLore(List<String> lore) {
+        List<String> keyLoreConfig = plugin.getConfig().getStringList("magickey.key_lore");
+        String usesPattern = keyLoreConfig.stream()
+                .filter(line -> line.contains("{uses}"))
+                .findFirst()
+                .orElse("Usos: {uses}");
+
+        plugin.getLogger().info("Uses pattern: " + usesPattern);
+
+        for (String line : lore) {
+            line = colorize(line);
+            plugin.getLogger().info("Processing lore line: " + line);
+            String patternWithoutPlaceholder = colorize(usesPattern.replace("{uses}", ""));
+            if (line.contains(patternWithoutPlaceholder)) {
+                String usesStr = line.replace(patternWithoutPlaceholder, "").trim();
+                plugin.getLogger().info("Extracted uses string: " + usesStr);
+                if (usesStr.equalsIgnoreCase("ilimitado")) {
+                    plugin.getLogger().info("Extracted uses: Ilimitado");
+                    return -1; // Considera ilimitado se estiver escrito "ilimitado"
+                }
+                try {
+                    int uses = Integer.parseInt(usesStr);
+                    plugin.getLogger().info("Extracted uses: " + uses);
+                    return uses;
+                } catch (NumberFormatException e) {
+                    plugin.getLogger().info("Failed to parse uses, defaulting to 1");
+                    return 1; // Valor padrão se não for um número
                 }
             }
         }
+        plugin.getLogger().info("Uses not found in lore, defaulting to 1");
+        return 1; // Valor padrão se não encontrar a linha de usos
+    }
+
+    private void teleportPlayer(Player player, String location) {
+        String[] parts = location.split(",");
+        if (parts.length == 4) {
+            try {
+                Location teleportLocation = new Location(Bukkit.getWorld(parts[0].trim()),
+                        Double.parseDouble(parts[1].trim()),
+                        Double.parseDouble(parts[2].trim()),
+                        Double.parseDouble(parts[3].trim()));
+                player.teleport(teleportLocation);
+                player.sendMessage("§aTeletransportado para: " + location);
+            } catch (NumberFormatException e) {
+                player.sendMessage("§cErro ao interpretar as coordenadas de teleporte.");
+            }
+        } else {
+            player.sendMessage("§cFormato de localização inválido. Esperado: mundo,x,y,z");
+        }
+    }
+
+    private void decreaseKeyUses(Player player, ItemStack key, int slot) {
+        String keyName = key.getItemMeta().getDisplayName();
+        String creator = extractCreatorFromLore(key.getItemMeta().getLore());
+        String location = extractLocationFromLore(key.getItemMeta().getLore());
+        int uses = extractUsesFromLore(key.getItemMeta().getLore());
+        String material = key.getType().toString();
 
         if (uses > 0) {
             uses--;
         }
 
-        // Carregar todas as chaves do jogador
-        String keyData = database.loadPortalKey(player.getUniqueId());
-        if (keyData != null) {
-            String[] keys = keyData.split("/");
-            StringBuilder updatedKeys = new StringBuilder();
-
-            for (String keyEntry : keys) {
-                String[] keyParts = keyEntry.split(":");
-                if (keyParts.length == 6) {
-                    String entryKeyName = keyParts[0];
-                    String entryLocation = keyParts[2];
-                    int entrySlot = Integer.parseInt(keyParts[5]);
-
-                    // Atualizar ou remover a chave correspondente
-                    if (entryKeyName.equals(keyName) && entryLocation.equals(location) && entrySlot == key.getAmount()) {
-                        if (uses > 0) {
-                            updatedKeys.append(keyName).append(":")
-                                    .append(player.getName()).append(":")
-                                    .append(location).append(":")
-                                    .append(uses).append(":")
-                                    .append(key.getType().toString()).append(":")
-                                    .append(key.getAmount()).append("/");
-                        }
-                    } else {
-                        updatedKeys.append(keyEntry).append("/");
-                    }
-                }
+        if (uses == 0) {
+            boolean success = database.deletePortalKey(player.getUniqueId(), slot);
+            if (success) {
+                player.sendMessage("§cA chave de portal foi removida pois os usos chegaram a 0.");
+            } else {
+                player.sendMessage("§cErro ao remover a chave de portal do banco de dados.");
             }
-
-            // Verificar o tamanho da string antes de salvar
-            String updatedKeyData = updatedKeys.toString();
-            if (updatedKeyData.length() > 800) {
-                plugin.getLogger().severe("Erro: Dados da chave são muito longos para salvar no banco de dados.");
-                return;
+        } else {
+            String keyData = String.format("%s:%s:%s:%d:%s:%d", keyName, creator, location, uses, material, slot);
+            plugin.getLogger().info("Dados da chave para atualização: " + keyData);
+            boolean success = database.updatePortalKey(player.getUniqueId(), keyData, slot);
+            if (success) {
+                player.sendMessage("§aUsos restantes da chave: " + (uses == -1 ? "ilimitado" : uses));
+            } else {
+                player.sendMessage("§cErro ao atualizar os usos da chave no banco de dados.");
             }
-
-            // Salvar as chaves atualizadas no banco de dados
-            database.savePortalKey(player.getUniqueId(), updatedKeyData);
         }
     }
 
     private boolean canTeleport(Player player) {
         int cooldown = plugin.getConfig().getInt("magickey.key_cooldown", 5);
-        boolean useLuckPerms = plugin.getConfig().getBoolean("use_luckperms", false);
 
-        if (useLuckPerms && plugin.getServer().getPluginManager().isPluginEnabled("LuckPerms")) {
-            if (player.hasPermission("EssentialsMagic.MagicKey.time.byPass")) {
-                return true;
-            }
+        if (player.hasPermission("EssentialsMagic.MagicKey.time.byPass")) {
+            return true;
         }
 
-        // Verificar se o jogador está no cooldown
         long lastTeleport = cooldowns.getOrDefault(player.getUniqueId(), 0L);
         long currentTime = System.currentTimeMillis();
-        if (currentTime - lastTeleport < cooldown * 1000) {
+
+        if ((currentTime - lastTeleport) < cooldown * 1000) {
             player.sendMessage("§cVocê deve esperar " + (cooldown - (currentTime - lastTeleport) / 1000) + " segundos para teletransportar novamente.");
             return false;
         }
 
-        // Atualizar o tempo do último teleporte
         cooldowns.put(player.getUniqueId(), currentTime);
         return true;
     }
 
     private void savePortalKey(Player player, ItemStack key, int slot) {
-        String keyName = key.getItemMeta().getDisplayName();
-        List<String> lore = key.getItemMeta().getLore();
-        String creator = "";
-        String location = "";
-        int uses = 0; // Inicializar com 0
-        String material;
+        plugin.getLogger().info("Attempting to save portal key to database for player: " + player.getName());
 
-        // Verificar se o item é do Oraxen
-        if (OraxenItems.exists(OraxenItems.getIdByItem(key))) {
+        String keyName = key.getItemMeta().getDisplayName();
+        String creator = extractCreatorFromLore(key.getItemMeta().getLore());
+        String location = extractLocationFromLore(key.getItemMeta().getLore());
+        int uses = extractUsesFromLore(key.getItemMeta().getLore());
+
+        // Tenta obter o ID do Oraxen primeiro
+        String material;
+        if (OraxenItems.exists(key)) {
             material = OraxenItems.getIdByItem(key);
         } else {
             material = key.getType().toString();
         }
 
-        // Filtrar e identificar as chaves na lore
-        for (String line : lore) {
-            line = line.replaceAll("§[0-9a-fk-or]", ""); // Remover códigos de cores
-            if (line.contains("Chave criada por")) {
-                creator = line.replace("Chave criada por", "").trim();
-            } else if (line.contains("Local:")) {
-                location = line.replace("Local:", "").trim();
-            } else if (line.contains("Usos:")) {
-                if (line.contains("ilimitado")) {
-                    uses = -1;
-                } else {
-                    try {
-                        uses = Integer.parseInt(line.replace("Usos:", "").trim());
-                    } catch (NumberFormatException e) {
-                        uses = 0; // Valor padrão em caso de erro
-                    }
-                }
-            }
-        }
+        String keyData = String.format("%s:%s:%s:%d:%s:%d", keyName, creator, location, uses, material, slot);
 
-        // Limitar o tamanho dos campos para evitar truncamento
-        if (keyName.length() > 50) keyName = keyName.substring(0, 50);
-        if (creator.length() > 50) creator = creator.substring(0, 50);
-        if (location.length() > 50) location = location.substring(0, 50);
-        if (material.length() > 50) material = material.substring(0, 50);
-
-        String newKeyData = keyName + ":" + creator + ":" + location + ":" + uses + ":" + material + ":" + slot;
-
-        // Carregar todas as chaves do jogador
-        String keyData = database.loadPortalKey(player.getUniqueId());
-        StringBuilder updatedKeys = new StringBuilder();
-
-        if (keyData != null) {
-            String[] keys = keyData.split("/");
-            boolean keyUpdated = false;
-
-            for (String keyEntry : keys) {
-                String[] keyParts = keyEntry.split(":");
-                if (keyParts.length == 6) {
-                    String entryKeyName = keyParts[0];
-                    String entryLocation = keyParts[2];
-                    int entrySlot = Integer.parseInt(keyParts[5]);
-
-                    // Atualizar a chave correspondente
-                    if (entryKeyName.equals(keyName) && entryLocation.equals(location) && entrySlot == slot) {
-                        updatedKeys.append(newKeyData).append("/");
-                        keyUpdated = true;
-                    } else {
-                        updatedKeys.append(keyEntry).append("/");
-                    }
-                }
-            }
-
-            // Se a chave não foi atualizada, adicionar a nova chave
-            if (!keyUpdated) {
-                updatedKeys.append(newKeyData).append("/");
-            }
+        boolean success = database.savePortalKey(player.getUniqueId(), keyData);
+        if (success) {
+            plugin.getLogger().info("Portal key saved to database successfully.");
         } else {
-            updatedKeys.append(newKeyData).append("/");
+            plugin.getLogger().info("Failed to save portal key to database.");
         }
+    }
 
-        // Verificar o tamanho da string antes de salvar
-        String updatedKeyData = updatedKeys.toString();
-        if (updatedKeyData.length() > 800) {
-            plugin.getLogger().severe("Erro: Dados da chave são muito longos para salvar no banco de dados.");
-            return;
+    private void setKeyItemMeta(ItemStack keyItem, String keyName, String creator, String location, int uses) {
+        ItemMeta keyMeta = keyItem.getItemMeta();
+        if (keyMeta != null) {
+            keyMeta.setDisplayName(keyName);
+            List<String> lore = plugin.getConfig().getStringList("magickey.key_lore");
+            lore.replaceAll(line -> formatLoreLine(line, creator, location, uses));
+            keyMeta.setLore(lore);
+            keyItem.setItemMeta(keyMeta);
         }
+    }
 
-        // Salvar as chaves atualizadas no banco de dados
-        database.savePortalKey(player.getUniqueId(), updatedKeyData);
+    private String formatLoreLine(String line, String creator, String location, int uses) {
+        return line.replace("{player}", creator)
+                .replace("{location}", location)
+                .replace("{uses}", uses == -1 ? "ilimitado" : String.valueOf(uses))
+                .replace("&", "§");
+    }
 
-        // Remover o item da mão do jogador e colocá-lo no menu
-        player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
-        player.getOpenInventory().getTopInventory().setItem(slot, key);
+    private ItemStack createItemStack(Material material, String displayName, List<String> lore) {
+        ItemStack itemStack = new ItemStack(material);
+        ItemMeta meta = itemStack.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(displayName);
+            meta.setLore(lore);
+            itemStack.setItemMeta(meta);
+        }
+        return itemStack;
     }
 }

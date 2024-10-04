@@ -78,23 +78,24 @@ public class MK_MySQL {
         return null;
     }
 
-    public void savePortalKey(UUID playerId, String keyData) {
-        String existingData = loadPortalKey(playerId);
+    public boolean savePortalKey(UUID playerUUID, String keyData) {
+        String existingData = loadPortalKey(playerUUID);
         String newData = (existingData == null ? "" : existingData) + keyData + "/";
 
-        // Verificar o tamanho da string antes de salvar
         if (newData.length() > 800) {
             plugin.getLogger().severe("Erro: Dados da chave são muito longos para salvar no banco de dados.");
-            return;
+            return false;
         }
 
         String query = "UPDATE MK_Homes SET `MK-a` = ? WHERE player_id = ?";
         try (PreparedStatement statement = connection.prepareStatement(query)) {
             statement.setString(1, newData);
-            statement.setString(2, playerId.toString());
+            statement.setString(2, playerUUID.toString());
             statement.executeUpdate();
+            return true;
         } catch (SQLException e) {
             plugin.getLogger().severe("Erro ao salvar a chave de portal: " + e.getMessage());
+            return false;
         }
     }
 
@@ -111,5 +112,57 @@ public class MK_MySQL {
             plugin.getLogger().severe("Erro ao carregar a chave de portal: " + e.getMessage());
         }
         return null;
+    }
+
+    public boolean updatePortalKey(UUID playerUUID, String keyData, int slot) {
+        String existingData = loadPortalKey(playerUUID);
+        String[] keys = existingData.split("/");
+        StringBuilder newData = new StringBuilder();
+
+        boolean keyUpdated = false;
+        for (String key : keys) {
+            if (!key.isEmpty() && !key.endsWith(":" + slot)) {
+                newData.append(key).append("/");
+            } else if (key.endsWith(":" + slot)) {
+                newData.append(keyData).append("/");
+                keyUpdated = true;
+            }
+        }
+
+        String query = "UPDATE MK_Homes SET `MK-a` = ? WHERE player_id = ?";
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setString(1, newData.toString());
+            statement.setString(2, playerUUID.toString());
+            statement.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erro ao atualizar a chave de portal: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean deletePortalKey(UUID playerUUID, int slot) {
+        String existingData = loadPortalKey(playerUUID);
+        if (existingData == null) return false;
+
+        String[] keys = existingData.split("/");
+        StringBuilder newData = new StringBuilder();
+
+        for (String key : keys) {
+            if (!key.isEmpty() && !key.endsWith(":" + slot)) {
+                newData.append(key).append("/");
+            }
+        }
+
+        String query = "UPDATE MK_Homes SET `MK-a` = ? WHERE player_id = ?";
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setString(1, newData.toString());
+            statement.setString(2, playerUUID.toString());
+            statement.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erro ao deletar a chave de portal: " + e.getMessage());
+            return false;
+        }
     }
 }

@@ -15,6 +15,12 @@ tp_commands:
   spawn: true #EssentialsMagic.Spawn EssentialsMagic.SetSpawn
   spawn_cooldown: 5 #EssentialsMagic.Spawn.byPass
   spawn_cords:
+    world:
+      x:
+      y:
+      z:
+      yaw:
+      pitch:
   #tpa: true #EssentialsMagic.Tpa
   #tpa_cooldown: 5 #EssentialsMagic.Tpa.byPass
   #tpa_command_cooldown: 5 #EssentialsMagic.Tpa.byPass
@@ -68,12 +74,27 @@ magickey:
     - "&7Local: &c{location}"
     - "&7Usos: &c{uses}"
   home: true #EssentialsMagic.MagicKey.home
+  menu_title: "&cMenu de homes"
   home_cooldown: 5 #EssentialsMagic.MagicKey.home.byPass
   home_gui: true
-  home_icon: bed
-  key_storage_role: #EssentialsMagic.MagicKey.<role>
-    vip: 4
-    premium: 6
+  menu:
+    size: 45
+    buttons:
+      Home:
+          material: RED_BED
+          name: "&cHome"
+          lore:
+            - "&7Teleporta para a home."
+          slot: 22
+      keySlot:
+          material: NETHER_STAR
+          name: "&cSlote de chave"
+          lore:
+            - "&7Click para adicionar uma chave que esteja na sua mão."
+          roles: #EssentialsMagic.MagicKey.home.<role>
+            Default: [20,24]
+            Vip: [39,41,4]
+            Vip+: [37,43,1,7]
   world_teleport_blacklist: #EssentialsMagic.MagicKey.teleport.byPass
     - world_nether
   world_create_blacklist: #EssentialsMagic.MagicKey.Create.byPass

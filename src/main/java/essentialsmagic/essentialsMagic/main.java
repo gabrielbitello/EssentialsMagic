@@ -48,7 +48,6 @@ public final class main extends JavaPlugin {
             getCommand("spawn").setExecutor(new SpawnCommand(this));
 
             new MagicKey(this);
-            new home_menu(this, mkMySQL);
             new mf_commands(this, mfMySQL);
 
             String message = LegacyComponentSerializer.legacySection().serialize(Component.text("[EssentialsMagic] plugin has been enabled.").color(NamedTextColor.LIGHT_PURPLE));

@@ -1,10 +1,12 @@
 package essentialsmagic.EssentialsMagic.MagicFire.guis;
 
 import essentialsmagic.EssentialsMagic.MagicFire.MF_MySQL;
+import static essentialsmagic.EssentialsMagic.Utilities.colorize;
 
 
 import io.th0rgal.oraxen.api.OraxenFurniture;
 import io.th0rgal.oraxen.api.OraxenItems;
+
 import org.bukkit.*;
 import org.bukkit.block.BlockFace;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -26,7 +28,7 @@ public class tp_menu implements Listener {
     private final MF_MySQL mfMySQL;
     private final FileConfiguration config;
     private Location fireLocation;
-    private Runnable onClose;
+
 
     public tp_menu(JavaPlugin plugin, MF_MySQL mfMySQL) {
 
@@ -120,10 +122,6 @@ public class tp_menu implements Listener {
         // Implementação para pegar item do Oraxen
         // Precisa do API do Oraxen para buscar itens customizados
         return null; // Substitua com a chamada correta para Oraxen
-    }
-
-    private String colorize(String text) {
-        return text != null ? text.replace("&", "§") : "";
     }
 
     @EventHandler

@@ -19,6 +19,7 @@ public class WorldGuardManager {
     public static StateFlag MAGIC_KEY_USE_FLAG;
     public static StateFlag HOME_CREATE_FLAG;
     public static StateFlag HOME_TELEPORT_FLAG;
+    public static StateFlag PSGOD_FLAG;
 
     public WorldGuardManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -100,6 +101,22 @@ public class WorldGuardManager {
             if (existing instanceof StateFlag) {
                 HOME_TELEPORT_FLAG = (StateFlag) existing;
                 plugin.getLogger().info("Flag 'home-teleport' already exists, using the existing flag.");
+            } else {
+                plugin.getLogger().severe("Flag conflict detected and could not resolve it!");
+                plugin.getServer().getPluginManager().disablePlugin(plugin);
+            }
+        }
+
+        try {
+            StateFlag PsGod = new StateFlag("PsGod", false);  // ALLOW by default
+            registry.register(PsGod);
+            PSGOD_FLAG = PsGod;
+            plugin.getLogger().info("Flag 'PsGod' registered successfully.");
+        } catch (FlagConflictException e) {
+            Flag<?> existing = registry.get("PsGod");
+            if (existing instanceof StateFlag) {
+                PSGOD_FLAG = (StateFlag) existing;
+                plugin.getLogger().info("Flag 'PsGod' already exists, using the existing flag.");
             } else {
                 plugin.getLogger().severe("Flag conflict detected and could not resolve it!");
                 plugin.getServer().getPluginManager().disablePlugin(plugin);

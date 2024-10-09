@@ -12,8 +12,10 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
@@ -157,6 +159,10 @@ public class home_menu implements Listener {
         return colorizedList;
     }
 
+    private String sanitizeKey(String input) {
+        return input.toLowerCase().replaceAll("[^a-z0-9/._-]", "_");
+    }
+
     @EventHandler
     public void onMenuClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
@@ -164,11 +170,64 @@ public class home_menu implements Listener {
 
         // Verifica se o menu é o MagicFire
         String title = event.getView().getTitle();
-        if (!title.equals(colorize(menuTitle))) return;
+        if (!title.equals(colorize(menuTitle))) {
+            return;
+        }
 
         event.setCancelled(true);
+        if (event.getClick() == ClickType.DROP || event.getClick() == ClickType.CONTROL_DROP) {
+            handleDropEvent(player, event.getCurrentItem(), event.getSlot());
+        } else {
+            handleMouseClick(player, event.getCurrentItem(), event.getSlot());
+        }
+    }
 
-        ItemStack currentItem = event.getCurrentItem();
+    private void handleDropEvent(Player player, ItemStack droppedItem, int slot) {
+        if (droppedItem == null || droppedItem.getType() == Material.AIR) {
+            return;
+        }
+
+        ItemMeta meta = droppedItem.getItemMeta();
+        if (meta == null) {
+            return;
+        }
+
+        NamespacedKey keyNamespace = new NamespacedKey(plugin, "MenuKey");
+        if (meta.getPersistentDataContainer().has(keyNamespace, PersistentDataType.STRING)) {
+            boolean success = database.deletePortalKey(player.getUniqueId(), slot);
+            if (success) {
+                // Tenta obter o item pelo ID do Oraxen
+                String oraxenItemId = OraxenItems.getIdByItem(droppedItem);
+                ItemStack itemToGive;
+                if (OraxenItems.exists(oraxenItemId)) {
+                    itemToGive = OraxenItems.getItemById(oraxenItemId).build();
+                } else {
+                    itemToGive = droppedItem;
+                }
+
+                // Copia a lore e outras propriedades do item original
+                ItemMeta oraxenMeta = itemToGive.getItemMeta();
+                if (oraxenMeta != null) {
+                    oraxenMeta.setLore(meta.getLore());
+                    oraxenMeta.setDisplayName(meta.getDisplayName());
+                    oraxenMeta.addItemFlags(meta.getItemFlags().toArray(new ItemFlag[0]));
+                    if (meta.hasCustomModelData()) {
+                        oraxenMeta.setCustomModelData(meta.getCustomModelData());
+                    }
+                    itemToGive.setItemMeta(oraxenMeta);
+                }
+
+                player.getInventory().addItem(itemToGive);
+                player.sendMessage("§aChave de portal removida e adicionada ao seu inventário.");
+                player.closeInventory(); // Fecha o menu
+            } else {
+                plugin.getLogger().info("Failed to delete portal key from database.");
+                player.sendMessage("§cErro ao remover a chave de portal do banco de dados.");
+            }
+        }
+    }
+
+    private void handleMouseClick(Player player, ItemStack currentItem, int slot) {
         if (currentItem == null || currentItem.getType() == Material.AIR) return;
 
         ItemMeta meta = currentItem.getItemMeta();
@@ -195,10 +254,10 @@ public class home_menu implements Listener {
                     player.performCommand("home");
                     break;
                 case "MenuKey":
-                    handlePortalKeyClick(player, currentItem, event.getSlot());
+                    handlePortalKeyClick(player, currentItem, slot);
                     break;
                 case "MenuKeySlot":
-                    handleNetherStarClick(player, event.getSlot());
+                    handleNetherStarClick(player, slot);
                     break;
                 default:
                     player.sendMessage("§cAção desconhecida.");
@@ -207,6 +266,32 @@ public class home_menu implements Listener {
             player.closeInventory();
         }
     }
+
+    //private int findKeySlotInDatabase(Player player, ItemStack key) {
+    //    String keyData = database.loadPortalKey(player.getUniqueId());
+    //    plugin.getLogger().info("Loaded key data from database: " + keyData);
+    //    if (keyData != null) {
+    //        for (String keyEntry : keyData.split("/")) {
+    //            String[] keyParts = keyEntry.split(":");
+    //           if (keyParts.length == 6) {
+    //                String keyName = keyParts[0];
+    //                String creator = keyParts[1];
+    //                String location = keyParts[2];
+    //                int uses = Integer.parseInt(keyParts[3]);
+    //                String material = keyParts[4];
+    //                int slot = Integer.parseInt(keyParts[5]);
+
+    //                plugin.getLogger().info("Checking key entry: " + keyEntry);
+    //                if (key.getItemMeta().getDisplayName().equals(keyName) &&
+    //                        key.getType().toString().equals(material)) {
+    //                    plugin.getLogger().info("Matching key found in database at slot: " + slot);
+    //                    return slot;
+    //                }
+    //            }
+    //        }
+    //    }
+    //    return -1;
+    //}
 
     private void handleNetherStarClick(Player player, int slot) {
         ItemStack handItem = player.getInventory().getItemInMainHand();

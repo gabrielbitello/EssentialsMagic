@@ -99,3 +99,23 @@ magickey:
     - world_nether
   world_create_blacklist: #EssentialsMagic.MagicKey.Create.byPass
     - world_the_end
+
+psgod:
+  status: true
+  prefix: "&c[Deus]&f"
+  alias: [god, pedido, oracao]
+  use_region: true
+  max_per_player: 1
+  restart_days: 7 #7 days
+  start_date: "1010-01-01 00:00:00"
+  mensages:
+    broadcast: "&c{player} &7realizou um pedido"
+    player: "&7Voce realizou um pedido"
+    win: "&7Seu pedido foi atendido"
+    win_broadcast: "&7o pedido de &c{player} &7foi atendido"
+    error: "&7Voce ja realizou um pedido recentemente"
+    invalid: "&4Seu pedido foi sorteado, mas foi negado"
+    admin: "pedido de &c{player} &7é valido?"
+    admin2: "pedido de &c{player} &7f{order}"
+    region: "&7Voce precisa estar em uma regiao sagrada para realizar um pedido"
+    not_permission: "&7Voce nao tem permissao para realizar um pedido"
